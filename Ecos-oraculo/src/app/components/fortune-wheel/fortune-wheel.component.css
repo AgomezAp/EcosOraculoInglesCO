@@ -1,0 +1,2231 @@
+.crystal-ball-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.4s ease;
+  padding: 20px;
+  box-sizing: border-box;
+}
+.prize-description {
+  color: white;
+}
+.crystal-ball-container.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.crystal-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    circle at center,
+    rgba(15, 15, 45, 0.95) 0%,
+    rgba(5, 5, 25, 0.98) 70%,
+    rgba(0, 0, 15, 1) 100%
+  );
+  backdrop-filter: blur(12px);
+}
+/* ✅ Estilos para el estado de procesamiento */
+.oracle-activation.processing {
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+.processing-click {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.click-loader {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #fff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.processing-info {
+  text-align: center;
+  color: #ffd700;
+}
+
+.processing-animation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.process-icon {
+  font-size: 1.2rem;
+  animation: pulse 1s ease-in-out infinite alternate;
+}
+
+/* ✅ Estilos para indicadores separados */
+.dream-consultations-indicator {
+  background: rgba(138, 43, 226, 0.2);
+  border: 1px solid rgba(138, 43, 226, 0.4);
+  padding: 5px 10px;
+  border-radius: 15px;
+  margin-top: 5px;
+}
+
+.consultations-count {
+  color: #ba55d3;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* ✅ Estilos para panel de recursos */
+.resources-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.resource-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.resource-icon {
+  font-size: 1.1rem;
+}
+
+.resource-text {
+  color: #e0e0e0;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+/* ✅ Estilos para botones de acción */
+.prize-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.try-again-btn {
+  background: linear-gradient(45deg, #ff6b35, #ff8e53);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
+}
+
+.try-again-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 107, 53, 0.4);
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+.continue-spinning-btn {
+  background: linear-gradient(45deg, #4ecdc4, #45b7d1);
+  color: white;
+  border: none;
+  padding: 15px 25px;
+  border-radius: 25px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(78, 205, 196, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.continue-spinning-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(78, 205, 196, 0.4);
+  background: linear-gradient(45deg, #45b7d1, #4ecdc4);
+}
+
+.continue-icon {
+  font-size: 1.2rem;
+  animation: bounce 2s infinite;
+}
+
+.no-more-spins-message {
+  text-align: center;
+  padding: 20px;
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  border-radius: 10px;
+  margin-bottom: 15px;
+}
+
+.no-more-spins-message p {
+  color: #ffc107;
+  margin-bottom: 15px;
+  font-weight: 500;
+  font-size: 1rem;
+}
+
+/* ✅ Estilos para resumen de recursos */
+.current-resources {
+  margin-top: 25px;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.current-resources h4 {
+  color: #ffd700;
+  margin-bottom: 15px;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.resource-summary {
+  display: flex;
+  justify-content: space-around;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.resource-summary .resource-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  min-width: 120px;
+  flex: 1;
+}
+
+.resource-summary .resource-icon {
+  font-size: 1.5rem;
+  margin-bottom: 8px;
+}
+
+.resource-summary .resource-count {
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: #4ecdc4;
+  margin-bottom: 4px;
+}
+
+.resource-summary .resource-label {
+  font-size: 0.85rem;
+  color: #b0b0b0;
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* ✅ Estilos para acciones de premio */
+.prize-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 20px;
+  width: 100%;
+}
+
+.accept-destiny-btn {
+  background: linear-gradient(45deg, #667eea, #764ba2);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  width: 100%;
+}
+
+.accept-destiny-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  background: linear-gradient(45deg, #764ba2, #667eea);
+}
+
+/* ✅ Estilos mejorados para el estado de procesamiento */
+.oracle-activation.processing {
+  pointer-events: none;
+  opacity: 0.7;
+  transform: scale(0.98);
+}
+
+.processing-click {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.click-loader {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid #ffd700;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.processing-info {
+  text-align: center;
+  color: #ffd700;
+  padding: 10px;
+}
+
+.processing-animation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.process-icon {
+  font-size: 1.2rem;
+  animation: pulse 1s ease-in-out infinite alternate;
+}
+
+.process-text {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+/* ✅ Animaciones */
+@keyframes bounce {
+  0%,
+  20%,
+  50%,
+  80%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-10px);
+  }
+  60% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* ✅ Estilos adicionales para mejor UX */
+.oracle-activation:not(.disabled):not(.processing):hover {
+  transform: scale(1.05);
+}
+
+.oracle-activation.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ✅ Indicadores mejorados */
+.extra-spins-indicator {
+  background: rgba(78, 205, 196, 0.2);
+  border: 1px solid rgba(78, 205, 196, 0.4);
+  padding: 6px 12px;
+  border-radius: 15px;
+  margin-top: 8px;
+}
+
+.spins-count {
+  color: #4ecdc4;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.dream-consultations-indicator {
+  background: rgba(138, 43, 226, 0.2);
+  border: 1px solid rgba(138, 43, 226, 0.4);
+  padding: 6px 12px;
+  border-radius: 15px;
+  margin-top: 5px;
+}
+
+.consultations-count {
+  color: #ba55d3;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* ✅ Mejorar información de estado */
+.wheel-status {
+  margin: 20px 0;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.status-info {
+  color: #e0e0e0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.spin-info,
+.processing-info,
+.spinning-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.swirl-icon {
+  animation: spin 2s linear infinite;
+}
+.crystal-modal {
+  position: relative;
+  background: linear-gradient(
+    135deg,
+    rgba(25, 25, 50, 0.9) 0%,
+    rgba(15, 15, 35, 0.95) 50%,
+    rgba(10, 10, 30, 0.9) 100%
+  );
+  border-radius: 25px;
+  padding: 30px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7), 0 0 60px rgba(100, 150, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  width: 90vw;
+  max-width: 500px;
+  max-height: 90vh;
+  border: 1px solid rgba(100, 150, 255, 0.2);
+  animation: modalAppear 0.6s ease-out;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.crystal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid rgba(100, 150, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.crystal-header h2 {
+  color: #e0e7ff;
+  margin: 0;
+  text-shadow: 0 0 20px rgba(224, 231, 255, 0.4);
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-family: "Berkshire Swash", cursive;
+  letter-spacing: 0.5px;
+  text-align: center;
+  flex: 1;
+}
+
+.close-crystal-btn {
+  background: rgba(100, 150, 255, 0.1);
+  border: 1px solid rgba(100, 150, 255, 0.3);
+  color: #c7d2fe;
+  font-size: 18px;
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.close-crystal-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+  transform: scale(1.1) rotate(90deg);
+}
+
+.crystal-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Base ornamental centrada y mejorada */
+.crystal-base {
+  width: 120px;
+  height: 25px;
+  background: linear-gradient(135deg, #374151, #1f2937, #111827);
+  border-radius: 50% 50% 50% 50% / 100% 100% 30% 30%;
+  position: relative;
+  margin: 0 auto 10px auto;
+  z-index: 1;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6),
+    inset 0 2px 5px rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(75, 85, 99, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.base-details {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.base-ring {
+  width: 70%;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(156, 163, 175, 0.8),
+    transparent
+  );
+  border-radius: 50px;
+}
+
+.base-runes {
+  position: absolute;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.rune {
+  color: #9ca3af;
+  font-size: 10px;
+  text-shadow: 0 0 8px rgba(156, 163, 175, 0.6);
+  font-family: "Times New Roman", serif;
+}
+
+/* Bola de cristal redimensionada */
+.crystal-ball-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+}
+
+.crystal-ball {
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  position: relative;
+  background: radial-gradient(
+    circle at 25% 25%,
+    rgba(147, 197, 253, 0.3) 0%,
+    rgba(59, 130, 246, 0.25) 20%,
+    rgba(30, 64, 175, 0.4) 40%,
+    rgba(15, 23, 42, 0.7) 70%,
+    rgba(2, 6, 23, 0.9) 100%
+  );
+  box-shadow: 0 0 50px rgba(59, 130, 246, 0.4),
+    inset 0 0 60px rgba(255, 255, 255, 0.1),
+    inset 0 0 100px rgba(59, 130, 246, 0.2);
+  border: 3px solid rgba(147, 197, 253, 0.3);
+  overflow: hidden;
+  transition: all 0.5s ease;
+  margin: 0 auto;
+  animation: gentleFloat 6s ease-in-out infinite;
+}
+
+@keyframes gentleFloat {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+/* Partículas místicas */
+.mystic-particles {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(147, 197, 253, 0.8) 50%,
+    transparent 100%
+  );
+  border-radius: 50%;
+  left: var(--x);
+  top: var(--y);
+  animation: particleFloat 8s ease-in-out infinite var(--delay);
+  box-shadow: 0 0 10px rgba(147, 197, 253, 0.6);
+}
+
+@keyframes particleFloat {
+  0% {
+    transform: translateY(0px) translateX(0px) scale(0.8);
+    opacity: 0.4;
+  }
+  50% {
+    transform: translateY(-10px) translateX(5px) scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(0px) translateX(0px) scale(0.8);
+    opacity: 0.4;
+  }
+}
+
+/* Energía mística */
+.mystic-energy {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+}
+
+.energy-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(147, 197, 253, 0.3);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.outer-ring {
+  width: 240px;
+  height: 240px;
+  animation: energyPulse 4s ease-in-out infinite;
+  border-color: rgba(147, 197, 253, 0.2);
+}
+
+.middle-ring {
+  width: 170px;
+  height: 170px;
+  animation: energyPulse 3s ease-in-out infinite reverse;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.inner-ring {
+  width: 100px;
+  height: 100px;
+  animation: energyPulse 2s ease-in-out infinite;
+  border-color: rgba(147, 197, 253, 0.4);
+}
+
+@keyframes energyPulse {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translate(-50%, -50%) scale(1.03);
+  }
+}
+
+/* Galaxia interior */
+.galaxy-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 160px;
+  height: 160px;
+  transform: translate(-50%, -50%);
+  transition: transform 4s cubic-bezier(0.23, 1, 0.32, 1);
+  animation: galaxyRotate 30s linear infinite;
+}
+@keyframes galaxyRotate {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+.cosmic-dust {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-image: radial-gradient(
+      1px 1px at 25px 35px,
+      rgba(255, 255, 255, 0.8),
+      transparent
+    ),
+    radial-gradient(1px 1px at 50px 70px, rgba(147, 197, 253, 0.6), transparent),
+    radial-gradient(1px 1px at 85px 25px, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(1px 1px at 120px 60px, rgba(59, 130, 246, 0.5), transparent),
+    radial-gradient(1px 1px at 15px 85px, rgba(255, 255, 255, 0.9), transparent);
+  background-repeat: repeat;
+  background-size: 160px 160px;
+  animation: cosmicDrift 12s linear infinite;
+  opacity: 0.7;
+  border-radius: 50%;
+}
+
+.stellar-field {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+      circle at 30% 40%,
+      rgba(255, 255, 255, 0.1) 1px,
+      transparent 2px
+    ),
+    radial-gradient(
+      circle at 70% 60%,
+      rgba(147, 197, 253, 0.2) 1px,
+      transparent 2px
+    ),
+    radial-gradient(
+      circle at 50% 20%,
+      rgba(255, 255, 255, 0.15) 1px,
+      transparent 2px
+    );
+  animation: stellarRotate 20s linear infinite;
+  border-radius: 50%;
+}
+
+.nebula-swirl {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(147, 197, 253, 0.2) 0%,
+    rgba(59, 130, 246, 0.15) 30%,
+    rgba(99, 102, 241, 0.1) 60%,
+    transparent 100%
+  );
+  animation: nebulaFlow 15s ease-in-out infinite;
+  border-radius: 50%;
+}
+
+.center-orb {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 25px;
+  height: 25px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(147, 197, 253, 0.7) 40%,
+    rgba(59, 130, 246, 0.4) 70%,
+    transparent 100%
+  );
+  border-radius: 50%;
+  animation: orbPulse 2.5s ease-in-out infinite;
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.5);
+}
+
+/* Elementos flotantes de premios */
+.prize-elements {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+}
+
+.floating-symbol {
+  position: absolute;
+  animation: symbolFloat 12s ease-in-out infinite;
+}
+
+.floating-symbol:nth-child(1) {
+  top: 15%;
+  left: 25%;
+  animation-duration: 10s;
+}
+.floating-symbol:nth-child(2) {
+  top: 70%;
+  left: 20%;
+  animation-duration: 14s;
+}
+.floating-symbol:nth-child(3) {
+  top: 25%;
+  right: 20%;
+  animation-duration: 11s;
+}
+.floating-symbol:nth-child(4) {
+  bottom: 25%;
+  left: 35%;
+  animation-duration: 13s;
+}
+.floating-symbol:nth-child(5) {
+  top: 50%;
+  right: 25%;
+  animation-duration: 12s;
+}
+.floating-symbol:nth-child(6) {
+  top: 35%;
+  left: 50%;
+  animation-duration: 9s;
+}
+.floating-symbol:nth-child(7) {
+  bottom: 40%;
+  right: 30%;
+  animation-duration: 15s;
+}
+.floating-symbol:nth-child(8) {
+  top: 60%;
+  left: 60%;
+  animation-duration: 8s;
+}
+
+.symbol-glow {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.6);
+  text-shadow: 0 0 12px rgba(147, 197, 253, 0.8);
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
+}
+
+@keyframes symbolFloat {
+  0%,
+  100% {
+    transform: translateY(0px) translateX(0px) rotate(0deg) scale(0.8);
+    opacity: 0.4;
+  }
+  25% {
+    transform: translateY(-12px) translateX(8px) rotate(90deg) scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translateY(-4px) translateX(-10px) rotate(180deg) scale(0.9);
+    opacity: 0.6;
+  }
+  75% {
+    transform: translateY(10px) translateX(6px) rotate(270deg) scale(1.1);
+    opacity: 0.9;
+  }
+}
+
+/* Resultado en la bola */
+.crystal-result {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  animation: resultMaterialize 1.2s ease-out;
+  z-index: 10;
+}
+
+.result-aura {
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.15) 0%,
+    rgba(147, 197, 253, 0.2) 30%,
+    rgba(59, 130, 246, 0.1) 60%,
+    transparent 100%
+  );
+  padding: 20px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  border: 2px solid rgba(147, 197, 253, 0.3);
+  box-shadow: 0 0 30px rgba(147, 197, 253, 0.4),
+    inset 0 0 15px rgba(255, 255, 255, 0.1);
+}
+
+.result-symbol {
+  font-size: 35px;
+  color: #ffffff;
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.9),
+    0 0 30px rgba(147, 197, 253, 0.7);
+  animation: symbolRadiate 2s ease-in-out infinite alternate;
+}
+
+.result-title {
+  font-size: 12px;
+  color: #e0e7ff;
+  font-weight: 700;
+  font-family: "Arsenal", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  text-shadow: 0 0 10px rgba(224, 231, 255, 0.8);
+  text-align: center;
+  max-width: 100px;
+  line-height: 1.2;
+}
+
+@keyframes resultMaterialize {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3) rotate(180deg);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes symbolRadiate {
+  from {
+    text-shadow: 0 0 15px rgba(255, 255, 255, 0.9);
+    transform: scale(1);
+  }
+  to {
+    text-shadow: 0 0 25px rgba(255, 255, 255, 1),
+      0 0 40px rgba(147, 197, 253, 0.9), 0 0 60px rgba(59, 130, 246, 0.6);
+    transform: scale(1.03);
+  }
+}
+
+/* Reflexos del cristal */
+.crystal-reflections {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.reflection {
+  position: absolute;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.4) 0%,
+    rgba(255, 255, 255, 0.2) 40%,
+    rgba(147, 197, 253, 0.1) 70%,
+    transparent 100%
+  );
+  border-radius: 50%;
+  filter: blur(1px);
+}
+
+.primary-reflection {
+  top: 10%;
+  left: 15%;
+  width: 55px;
+  height: 70px;
+  transform: rotate(-25deg);
+  opacity: 0.7;
+  animation: reflectionShimmer 6s ease-in-out infinite;
+}
+
+.secondary-reflection {
+  top: 18%;
+  right: 22%;
+  width: 28px;
+  height: 35px;
+  transform: rotate(35deg);
+  opacity: 0.5;
+  animation: reflectionShimmer 8s ease-in-out infinite reverse;
+}
+
+.tertiary-reflection {
+  bottom: 22%;
+  left: 18%;
+  width: 20px;
+  height: 12px;
+  transform: rotate(-10deg);
+  opacity: 0.4;
+  animation: reflectionShimmer 4s ease-in-out infinite;
+}
+
+@keyframes reflectionShimmer {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* Aura exterior */
+.crystal-aura {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  right: -8px;
+  bottom: -8px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    transparent 70%,
+    rgba(147, 197, 253, 0.1) 80%,
+    rgba(59, 130, 246, 0.2) 90%,
+    rgba(147, 197, 253, 0.3) 100%
+  );
+  animation: auraFlow 8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes auraFlow {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.01);
+  }
+}
+
+/* Estados de la bola */
+.crystal-ball.spinning {
+  animation: crystalChanneling 5s ease-in-out infinite,
+    mysticSwirl 20s linear infinite, crystalGlow 4s ease-in-out infinite;
+  transform-origin: center center;
+}
+@keyframes mysticSwirl {
+  0% {
+    transform: rotate(0deg) scale(1);
+    filter: hue-rotate(0deg) blur(0px);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.03);
+    filter: hue-rotate(180deg) blur(1px);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+    filter: hue-rotate(360deg) blur(0px);
+  }
+}
+
+@keyframes crystalChanneling {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+@keyframes energyVortex {
+  0% {
+    box-shadow: 0 0 50px rgba(59, 130, 246, 0.5),
+      0 0 100px rgba(147, 197, 253, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 150px rgba(59, 130, 246, 1),
+      0 0 300px rgba(147, 197, 253, 0.8), 0 0 450px rgba(255, 255, 255, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 50px rgba(59, 130, 246, 0.5),
+      0 0 100px rgba(147, 197, 253, 0.3);
+  }
+}
+.crystal-ball.spinning .mystic-particles .particle {
+  animation: particleFloat 4s ease-in-out infinite;
+  animation-delay: calc(var(--delay) * 0.5);
+  box-shadow: 0 0 15px rgba(147, 197, 253, 0.8);
+}
+@keyframes energyRingFlow {
+  0% {
+    transform: translate(-50%, -50%) scale(0.95) rotate(0deg);
+    border-color: rgba(59, 130, 246, 0.6);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.05) rotate(180deg);
+    border-color: rgba(147, 197, 253, 0.8);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.95) rotate(360deg);
+    border-color: rgba(59, 130, 246, 0.6);
+  }
+}
+
+@keyframes particleStorm {
+  0% {
+    transform: translateY(0px) translateX(0px) scale(0.5);
+    opacity: 0.2;
+  }
+  25% {
+    transform: translateY(-30px) translateX(20px) scale(1.5);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-15px) translateX(-25px) scale(1.2);
+    opacity: 0.8;
+  }
+  75% {
+    transform: translateY(20px) translateX(15px) scale(1.8);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0px) translateX(0px) scale(0.5);
+    opacity: 0.2;
+  }
+}
+.crystal-ball.spinning .mystic-energy .energy-ring {
+  animation: energyRingFlow 8s linear infinite;
+  animation-delay: calc(var(--delay) * 1s);
+  border-width: 2px;
+  opacity: 0.8;
+}
+@keyframes crystalGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 60px rgba(59, 130, 246, 0.5),
+      0 0 120px rgba(147, 197, 253, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 80px rgba(59, 130, 246, 0.7),
+      0 0 150px rgba(147, 197, 253, 0.5), 0 0 200px rgba(255, 255, 255, 0.2);
+  }
+}
+@keyframes energyRingStorm {
+  0% {
+    transform: translate(-50%, -50%) scale(0.8) rotate(0deg);
+    border-color: rgba(59, 130, 246, 0.8);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.2) rotate(180deg);
+    border-color: rgba(147, 197, 253, 1);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.8) rotate(360deg);
+    border-color: rgba(59, 130, 246, 0.8);
+  }
+}
+/* Botón de activación */
+.oracle-activation {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 15px 20px;
+  border-radius: 15px;
+  background: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.1) 0%,
+    rgba(30, 64, 175, 0.15) 50%,
+    rgba(15, 23, 42, 0.2) 100%
+  );
+  border: 1px solid rgba(147, 197, 253, 0.3);
+  backdrop-filter: blur(10px);
+  flex-shrink: 0;
+}
+
+.oracle-activation:hover:not(.disabled) {
+  background: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.2) 0%,
+    rgba(30, 64, 175, 0.25) 50%,
+    rgba(15, 23, 42, 0.3) 100%
+  );
+  border-color: rgba(147, 197, 253, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+}
+
+.oracle-activation.disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.activation-symbol {
+  margin-bottom: 8px;
+}
+
+.rune-circle {
+  width: 40px;
+  height: 40px;
+  border: 2px solid rgba(147, 197, 253, 0.5);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+    circle,
+    rgba(147, 197, 253, 0.1) 0%,
+    transparent 70%
+  );
+  position: relative;
+}
+
+.central-rune {
+  font-size: 18px;
+  color: #93c5fd;
+  text-shadow: 0 0 12px rgba(147, 197, 253, 0.8);
+  font-family: "Times New Roman", serif;
+}
+
+.channeling-energy {
+  width: 40px;
+  height: 40px;
+  position: relative;
+}
+
+.energy-spiral {
+  width: 100%;
+  height: 100%;
+  border: 2px solid transparent;
+  border-top-color: rgba(147, 197, 253, 0.8);
+  border-right-color: rgba(59, 130, 246, 0.6);
+  border-radius: 50%;
+  animation: spiralChannel 1s linear infinite;
+  box-shadow: 0 0 15px rgba(147, 197, 253, 0.4);
+}
+
+@keyframes spiralChannel {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.activation-label {
+  font-size: 12px;
+  color: #c7d2fe;
+  font-family: "El Messiri", sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  text-shadow: 0 0 8px rgba(199, 210, 254, 0.4);
+  text-align: center;
+}
+
+/* Mensaje cósmico */
+.cosmic-message {
+  text-align: center;
+  margin-top: 20px;
+  animation: fadeInUp 0.6s ease-out;
+  flex-shrink: 0;
+}
+
+.message-text h3 {
+  color: #e0e7ff;
+  margin-bottom: 12px;
+  text-shadow: 0 0 12px rgba(224, 231, 255, 0.6);
+  font-size: 1.1rem;
+  font-family: "El Messiri", sans-serif;
+  font-weight: 600;
+}
+
+.cosmic-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(45deg, #3b82f6, #93c5fd);
+  animation: cosmicPulse 1.4s ease-in-out infinite;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes cosmicPulse {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.4;
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
+  }
+  40% {
+    transform: scale(1.2);
+    opacity: 1;
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
+  }
+}
+
+/* Revelación final - CORREGIDA */
+.oracle-revelation {
+  text-align: center;
+  animation: fadeInUp 0.8s ease-out;
+  margin-top: 15px;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.revelation-scroll {
+  background: linear-gradient(
+    135deg,
+    rgba(30, 41, 59, 0.9) 0%,
+    rgba(15, 23, 42, 0.95) 50%,
+    rgba(2, 6, 23, 0.9) 100%
+  );
+  padding: 20px;
+  border-radius: 15px;
+  border: 2px solid rgba(147, 197, 253, 0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 40px rgba(59, 130, 246, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(15px);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.revelation-scroll h3 {
+  color: #e0e7ff;
+  margin-bottom: 15px;
+  text-shadow: 0 0 15px rgba(224, 231, 255, 0.6);
+  font-size: 1.3rem;
+  font-family: "Berkshire Swash", cursive;
+  font-weight: 400;
+}
+
+.destiny-manifest {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  color: #e0e7ff;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 15px;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 12px;
+  border: 1px solid rgba(147, 197, 253, 0.2);
+  font-family: "Arsenal", sans-serif;
+  flex-wrap: wrap;
+}
+
+.manifest-symbol {
+  font-size: 30px;
+  animation: manifestFloat 2s ease-in-out infinite alternate;
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
+  flex-shrink: 0;
+}
+
+@keyframes manifestFloat {
+  from {
+    transform: translateY(0px) scale(1);
+    text-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
+  }
+  to {
+    transform: translateY(-3px) scale(1.02);
+    text-shadow: 0 0 20px rgba(255, 255, 255, 1),
+      0 0 30px rgba(147, 197, 253, 0.8);
+  }
+}
+
+.manifest-text {
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  text-shadow: 0 0 8px rgba(224, 231, 255, 0.6);
+  text-align: center;
+  line-height: 1.3;
+}
+.spin-text,
+.spin-info,
+.spins-count {
+  color: white;
+}
+.accept-destiny-btn {
+  background: linear-gradient(135deg, #1e40af, #3b82f6, #60a5fa);
+  border: none;
+  padding: 12px 25px;
+  border-radius: 20px;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  font-family: "Arsenal", sans-serif;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(147, 197, 253, 0.3);
+  width: 100%;
+  max-width: 200px;
+  margin: 0 auto;
+}
+
+.accept-destiny-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  background: linear-gradient(135deg, #3b82f6, #60a5fa, #93c5fd);
+  border-color: rgba(147, 197, 253, 0.5);
+}
+
+.accept-destiny-btn:active {
+  transform: translateY(0px);
+}
+
+/* Animaciones adicionales */
+@keyframes cosmicDrift {
+  0% {
+    transform: rotate(0deg) translateY(0px);
+  }
+  100% {
+    transform: rotate(360deg) translateY(-3px);
+  }
+}
+
+@keyframes stellarRotate {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.02);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+@keyframes nebulaFlow {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+    opacity: 0.6;
+  }
+  33% {
+    transform: rotate(120deg) scale(1.05);
+    opacity: 0.8;
+  }
+  66% {
+    transform: rotate(240deg) scale(0.98);
+    opacity: 0.7;
+  }
+}
+
+@keyframes orbPulse {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 0 25px rgba(255, 255, 255, 0.5);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1);
+    box-shadow: 0 0 40px rgba(255, 255, 255, 0.8);
+  }
+}
+
+@keyframes modalAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* RESPONSIVE DESIGN COMPLETO */
+
+/* Tablets */
+@media (max-width: 768px) {
+  .crystal-modal {
+    padding: 25px 20px;
+    width: 95vw;
+    max-width: 450px;
+  }
+  .resource-summary {
+    flex-direction: column;
+  }
+
+  .resource-summary .resource-item {
+    min-width: unset;
+  }
+
+  .continue-spinning-btn {
+    padding: 12px 20px;
+    font-size: 1rem;
+  }
+
+  .current-resources {
+    padding: 15px;
+  }
+
+  .prize-actions {
+    gap: 10px;
+  }
+  .crystal-header h2 {
+    font-size: 1.4rem;
+  }
+
+  .close-crystal-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+
+  .crystal-ball {
+    width: 250px;
+    height: 250px;
+  }
+
+  .galaxy-core {
+    width: 140px;
+    height: 140px;
+  }
+
+  .crystal-base {
+    width: 100px;
+    height: 22px;
+  }
+
+  .base-runes {
+    padding: 0 10px;
+  }
+
+  .rune {
+    font-size: 9px;
+  }
+
+  .mystic-energy .outer-ring {
+    width: 210px;
+    height: 210px;
+  }
+
+  .mystic-energy .middle-ring {
+    width: 150px;
+    height: 150px;
+  }
+
+  .mystic-energy .inner-ring {
+    width: 90px;
+    height: 90px;
+  }
+
+  .particle {
+    width: 2.5px;
+    height: 2.5px;
+  }
+
+  .symbol-glow {
+    font-size: 14px;
+  }
+
+  .result-symbol {
+    font-size: 30px;
+  }
+
+  .result-title {
+    font-size: 11px;
+    max-width: 90px;
+  }
+
+  .result-aura {
+    padding: 18px;
+  }
+
+  .rune-circle {
+    width: 36px;
+    height: 36px;
+  }
+
+  .central-rune {
+    font-size: 16px;
+  }
+
+  .channeling-energy {
+    width: 36px;
+    height: 36px;
+  }
+
+  .activation-label {
+    font-size: 11px;
+  }
+
+  .oracle-activation {
+    padding: 12px 18px;
+  }
+
+  .message-text h3 {
+    font-size: 1rem;
+  }
+
+  .dot {
+    width: 7px;
+    height: 7px;
+  }
+
+  .revelation-scroll {
+    padding: 18px;
+  }
+
+  .revelation-scroll h3 {
+    font-size: 1.2rem;
+  }
+
+  .destiny-manifest {
+    font-size: 15px;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .manifest-symbol {
+    font-size: 26px;
+  }
+
+  .accept-destiny-btn {
+    font-size: 13px;
+    padding: 10px 20px;
+  }
+
+  .primary-reflection {
+    width: 45px;
+    height: 58px;
+  }
+
+  .secondary-reflection {
+    width: 23px;
+    height: 28px;
+  }
+
+  .tertiary-reflection {
+    width: 16px;
+    height: 10px;
+  }
+
+  .center-orb {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+/* Móviles */
+@media (max-width: 480px) {
+  .crystal-ball-container {
+    padding: 15px;
+  }
+
+  .crystal-modal {
+    padding: 20px 15px;
+    width: 98vw;
+    max-width: 380px;
+    border-radius: 20px;
+  }
+
+  .crystal-header {
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+  }
+
+  .crystal-header h2 {
+    font-size: 1.2rem;
+  }
+
+  .close-crystal-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+  }
+
+  .crystal-ball {
+    width: 220px;
+    height: 220px;
+  }
+
+  .galaxy-core {
+    width: 120px;
+    height: 120px;
+  }
+
+  .crystal-base {
+    width: 85px;
+    height: 18px;
+    margin-bottom: 8px;
+  }
+
+  .base-runes {
+    padding: 0 8px;
+  }
+
+  .rune {
+    font-size: 8px;
+  }
+
+  .mystic-energy .outer-ring {
+    width: 180px;
+    height: 180px;
+  }
+
+  .mystic-energy .middle-ring {
+    width: 130px;
+    height: 130px;
+  }
+
+  .mystic-energy .inner-ring {
+    width: 75px;
+    height: 75px;
+  }
+
+  .particle {
+    width: 2px;
+    height: 2px;
+  }
+
+  .symbol-glow {
+    font-size: 12px;
+  }
+
+  .result-symbol {
+    font-size: 26px;
+  }
+
+  .result-title {
+    font-size: 10px;
+    max-width: 80px;
+  }
+
+  .result-aura {
+    padding: 15px;
+    gap: 8px;
+  }
+
+  .rune-circle {
+    width: 32px;
+    height: 32px;
+  }
+
+  .central-rune {
+    font-size: 14px;
+  }
+
+  .channeling-energy {
+    width: 32px;
+    height: 32px;
+  }
+
+  .activation-label {
+    font-size: 10px;
+  }
+
+  .oracle-activation {
+    padding: 10px 15px;
+    margin-top: 15px;
+  }
+
+  .cosmic-message {
+    margin-top: 15px;
+  }
+
+  .message-text h3 {
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  .oracle-revelation {
+    margin-top: 12px;
+  }
+
+  .revelation-scroll {
+    padding: 15px;
+    border-radius: 12px;
+  }
+
+  .revelation-scroll h3 {
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+  }
+
+  .destiny-manifest {
+    font-size: 14px;
+    gap: 8px;
+    padding: 10px;
+    margin-bottom: 15px;
+  }
+
+  .manifest-symbol {
+    font-size: 22px;
+  }
+
+  .accept-destiny-btn {
+    font-size: 12px;
+    padding: 10px 18px;
+    max-width: 180px;
+  }
+
+  .primary-reflection {
+    width: 38px;
+    height: 48px;
+  }
+
+  .secondary-reflection {
+    width: 20px;
+    height: 24px;
+  }
+
+  .tertiary-reflection {
+    width: 14px;
+    height: 8px;
+  }
+
+  .center-orb {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* Móviles muy pequeños */
+@media (max-width: 360px) {
+  .crystal-modal {
+    padding: 15px 12px;
+    max-width: 340px;
+  }
+
+  .crystal-header h2 {
+    font-size: 1.1rem;
+  }
+
+  .crystal-ball {
+    width: 190px;
+    height: 190px;
+  }
+
+  .galaxy-core {
+    width: 105px;
+    height: 105px;
+  }
+
+  .crystal-base {
+    width: 75px;
+    height: 16px;
+  }
+
+  .mystic-energy .outer-ring {
+    width: 155px;
+    height: 155px;
+  }
+
+  .mystic-energy .middle-ring {
+    width: 110px;
+    height: 110px;
+  }
+
+  .mystic-energy .inner-ring {
+    width: 65px;
+    height: 65px;
+  }
+
+  .symbol-glow {
+    font-size: 11px;
+  }
+
+  .result-symbol {
+    font-size: 22px;
+  }
+
+  .result-title {
+    font-size: 9px;
+    max-width: 70px;
+  }
+
+  .revelation-scroll {
+    padding: 12px;
+  }
+
+  .revelation-scroll h3 {
+    font-size: 1rem;
+  }
+
+  .destiny-manifest {
+    font-size: 13px;
+    padding: 8px;
+  }
+
+  .manifest-symbol {
+    font-size: 20px;
+  }
+
+  .accept-destiny-btn {
+    font-size: 11px;
+    padding: 8px 15px;
+    max-width: 160px;
+  }
+
+  .center-orb {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* Estados de hover mejorados */
+.crystal-ball:hover:not(.spinning) {
+  box-shadow: 0 0 70px rgba(59, 130, 246, 0.5),
+    inset 0 0 60px rgba(255, 255, 255, 0.15),
+    inset 0 0 100px rgba(59, 130, 246, 0.25);
+}
+
+.crystal-ball:hover:not(.spinning) .mystic-particles .particle {
+  animation-duration: 6s;
+  box-shadow: 0 0 15px rgba(147, 197, 253, 0.8);
+}
+
+.crystal-ball:hover:not(.spinning) .crystal-aura {
+  opacity: 0.8;
+  transform: scale(1.01);
+}
+
+.crystal-ball:hover:not(.spinning) .mystic-energy .energy-ring {
+  opacity: 0.9;
+}
+
+/* Optimizaciones de rendimiento */
+.mystic-particles,
+.mystic-energy,
+.galaxy-core,
+.crystal-reflections,
+.crystal-aura {
+  will-change: transform, opacity;
+}
+
+.particle,
+.energy-ring,
+.floating-symbol {
+  will-change: transform;
+}
+
+/* Mejoras para pantallas de alta densidad */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .particle {
+    width: 4px;
+    height: 4px;
+  }
+
+  .crystal-ball {
+    border-width: 2px;
+  }
+
+  .mystic-energy .energy-ring {
+    border-width: 1px;
+  }
+}
+
+/* Animaciones suaves para dispositivos con movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+  .particle,
+  .energy-ring,
+  .galaxy-core *,
+  .floating-symbol,
+  .crystal-aura,
+  .symbol-glow,
+  .result-symbol,
+  .manifest-symbol {
+    animation-duration: 0.2s;
+    animation-iteration-count: 1;
+  }
+
+  .crystal-ball.spinning,
+  .crystal-ball.revealing {
+    animation: none;
+    transition: none;
+  }
+
+  .oracle-activation:hover:not(.disabled) {
+    transform: none;
+  }
+
+  .accept-destiny-btn:hover {
+    transform: none;
+  }
+}
+
+/* Estados de carga */
+.crystal-ball-container.loading {
+  pointer-events: none;
+}
+
+.crystal-ball-container.loading .crystal-ball {
+  animation: loadingPulse 2s ease-in-out infinite;
+}
+
+@keyframes loadingPulse {
+  0%,
+  100% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.01);
+  }
+}
+
+/* Mejoras de accesibilidad */
+.oracle-activation:focus,
+.accept-destiny-btn:focus,
+.close-crystal-btn:focus {
+  outline: 2px solid rgba(147, 197, 253, 0.6);
+  outline-offset: 2px;
+}
+
+/* Soporte para pantallas táctiles */
+@media (hover: none) and (pointer: coarse) {
+  .oracle-activation:hover {
+    transform: none;
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
+  }
+
+  .accept-destiny-btn:hover {
+    transform: none;
+  }
+
+  .crystal-ball:hover {
+    box-shadow: 0 0 50px rgba(59, 130, 246, 0.4),
+      inset 0 0 60px rgba(255, 255, 255, 0.1),
+      inset 0 0 100px rgba(59, 130, 246, 0.2);
+  }
+}
+
+/* Ajustes para dispositivos con orientación landscape en móviles */
+@media (max-width: 768px) and (orientation: landscape) {
+  .crystal-modal {
+    max-height: 85vh;
+    padding: 15px;
+  }
+
+  .crystal-ball {
+    width: 200px;
+    height: 200px;
+  }
+
+  .galaxy-core {
+    width: 110px;
+    height: 110px;
+  }
+
+  .crystal-header {
+    margin-bottom: 15px;
+  }
+
+  .oracle-activation {
+    margin-top: 10px;
+  }
+
+  .cosmic-message,
+  .oracle-revelation {
+    margin-top: 10px;
+  }
+
+  .revelation-scroll {
+    padding: 15px;
+  }
+}
+
+/* Corrección para el scroll del modal */
+.crystal-modal::-webkit-scrollbar {
+  width: 6px;
+}
+
+.crystal-modal::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.3);
+  border-radius: 10px;
+}
+
+.crystal-modal::-webkit-scrollbar-thumb {
+  background: rgba(147, 197, 253, 0.3);
+  border-radius: 10px;
+}
+
+.crystal-modal::-webkit-scrollbar-thumb:hover {
+  background: rgba(147, 197, 253, 0.5);
+}
+
+/* Efectos de transición suaves para todos los elementos */
+* {
+  box-sizing: border-box;
+}
+
+.crystal-ball *,
+.oracle-activation *,
+.revelation-scroll * {
+  transition: opacity 0.3s ease, transform 0.3s ease, color 0.3s ease;
+}
+
+/* Corrección final para centrado perfecto */
+.crystal-content {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.crystal-ball-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Estados finales */
+.crystal-ball-container.closing {
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.crystal-ball-container.closing .crystal-modal {
+  transform: scale(0.9) translateY(20px);
+  transition: transform 0.3s ease;
+}
+
+/* Ajuste para mejorar la visibilidad del contenido final */
+.oracle-revelation {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.destiny-manifest {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.manifest-text {
+  word-break: break-word;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  -ms-hyphens: auto;
+}
+
+/* Corrección para que el botón se vea completo */
+.accept-destiny-btn {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ajuste final para el spacing */
+.crystal-content > * {
+  margin-bottom: 0;
+}
+
+.crystal-content > *:not(:last-child) {
+  margin-bottom: 15px;
+}
+
+@media (max-width: 480px) {
+  .crystal-content > *:not(:last-child) {
+    margin-bottom: 12px;
+  }
+}
+
+/* Limpieza final de margenes */
+.oracle-revelation:last-child,
+.cosmic-message:last-child,
+.crystal-ball-wrapper:last-child {
+  margin-bottom: 0;
+}
