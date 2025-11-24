@@ -285,21 +285,7 @@
             </div>
           </div>
 
-          <!-- Contenedor del elemento de pago de Stripe -->
           <div class="payment-form-container">
-            <div
-              *ngIf="isProcessingPayment && !paymentElement"
-              class="payment-loading"
-            >
-              <mat-spinner diameter="40"></mat-spinner>
-              <p>Preparing payment form...</p>
-            </div>
-
-            <div
-              id="payment-element-container-love"
-              class="stripe-payment-element"
-            ></div>
-
             <div *ngIf="paymentError" class="payment-error">
               <mat-icon color="warn">error</mat-icon>
               <span>{{ paymentError }}</span>
@@ -312,14 +298,14 @@
             mat-raised-button
             color="primary"
             (click)="handlePaymentSubmit()"
-            [disabled]="isProcessingPayment || !paymentElement"
+            [disabled]="isProcessingPayment"
           >
             <mat-spinner
               *ngIf="isProcessingPayment"
               diameter="20"
             ></mat-spinner>
             <mat-icon *ngIf="!isProcessingPayment">payment</mat-icon>
-            {{ isProcessingPayment ? "Processing..." : "Make Payment" }}
+            {{ isProcessingPayment ? "Processing..." : "Pay with PayPal" }}
           </button>
           <button
             mat-stroked-button

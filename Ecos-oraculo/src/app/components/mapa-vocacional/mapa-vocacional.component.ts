@@ -19,12 +19,6 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatRadioModule } from '@angular/material/radio';
 import { MatStepperModule } from '@angular/material/stepper';
 import { MapaVocacionalService } from '../../services/mapa-vocacional.service';
-import {
-  loadStripe,
-  Stripe,
-  StripeElements,
-  StripePaymentElement,
-} from '@stripe/stripe-js';
 import { HttpClient } from '@angular/common/http';
 import { RecolectaDatosComponent } from '../recolecta-datos/recolecta-datos.component';
 import { environment } from '../../environments/environments';
@@ -34,6 +28,7 @@ import {
 } from '../fortune-wheel/fortune-wheel.component';
 import { LoggerService } from '../../services/logger.service';
 import { StorageService } from '../../services/storage.service';
+import { PaypalService } from '../../services/paypal.service';
 interface VocationalMessage {
   sender: string;
   content: string;
@@ -137,10 +132,6 @@ export class MapaVocacionalComponent
 
   // AGREGADO - Variables para control de pagos
   showPaymentModal: boolean = false;
-  stripe: Stripe | null = null;
-  elements: StripeElements | undefined;
-  paymentElement: StripePaymentElement | undefined;
-  clientSecret: string | null = null;
   isProcessingPayment: boolean = false;
   paymentError: string | null = null;
   hasUserPaidForVocational: boolean = false;
@@ -189,10 +180,10 @@ export class MapaVocacionalComponent
   constructor(
     private vocationalService: MapaVocacionalService,
     private http: HttpClient,
-    private elRef: ElementRef<HTMLElement>
-  ,
+    private elRef: ElementRef<HTMLElement>,
     private logger: LoggerService,
-    private storage: StorageService
+    private storage: StorageService,
+    private paypalService: PaypalService
   ) {}
   ngAfterViewInit(): void {
     this.setVideosSpeed(0.67); // 0.5 = más lento, 1 = normal
@@ -287,67 +278,66 @@ export class MapaVocacionalComponent
     this.shouldAutoScroll = isNearBottom;
   }
 
-  // AGREGADO - Cleanup Stripe
+  // AGREGADO - Cleanup
   ngOnDestroy(): void {
     if (this.wheelTimer) {
       clearTimeout(this.wheelTimer);
     }
-    if (this.paymentElement) {
-      try {
-        this.paymentElement.destroy();
-      } catch (error) {
-        this.logger.log('Error al destruir elemento de pago:', error);
-      } finally {
-        this.paymentElement = undefined;
-      }
-    }
   }
 
   // AGREGADO - Verificar estado de pago desde URL
-  private checkPaymentStatus(): void {
-    const urlParams = new URLSearchParams(window.location.search);
-    const paymentIntent = urlParams.get('payment_intent');
-    const paymentIntentClientSecret = urlParams.get(
-      'payment_intent_client_secret'
-    );
+  private async checkPaymentStatus(): Promise<void> {
+    this.hasUserPaidForVocational = this.storage.hasUserPaid('Vocational');
 
-    if (paymentIntent && paymentIntentClientSecret && this.stripe) {
-      this.stripe
-        .retrievePaymentIntent(paymentIntentClientSecret)
-        .then(({ paymentIntent }) => {
-          if (paymentIntent && paymentIntent.status === 'succeeded') {
-            this.logger.log('✅ Pago vocacional confirmado desde URL');
-            this.hasUserPaidForVocational = true;
-            this.storage.setUserPaid('Vocational', true);
-            this.blockedMessageId = null;
-            this.storage.removeBlockedMessageId('vocational');
+    const paymentStatus = this.paypalService.checkPaymentStatusFromUrl();
 
-            window.history.replaceState(
-              {},
-              document.title,
-              window.location.pathname
-            );
+    if (paymentStatus && paymentStatus.status === 'COMPLETED') {
+      try {
+        const verification = await this.paypalService.verifyAndProcessPayment(
+          paymentStatus.token
+        );
 
-            // Agregar mensaje de confirmación
-            const lastMessage = this.chatMessages[this.chatMessages.length - 1];
-            if (
-              !lastMessage ||
-              !lastMessage.content.includes('¡ Payment Confirmed!')
-            ) {
-              this.addMessage({
-                sender: this.counselorInfo.name,
-                content:
-                  '✨ Payment confirmed! Now you can access unlimited vocational guidance. Your professional future is within reach.',
-                timestamp: new Date(),
-                isUser: false,
-              });
-              this.saveMessagesToSession();
+        if (verification.valid && verification.status === 'approved') {
+          this.hasUserPaidForVocational = true;
+          this.storage.setUserPaid('Vocational', true);
+
+          this.blockedMessageId = null;
+          this.storage.removeBlockedMessageId('vocational');
+
+          window.history.replaceState({}, document.title, window.location.pathname);
+
+          this.showPaymentModal = false;
+          this.isProcessingPayment = false;
+          this.paymentError = null;
+
+          setTimeout(() => {
+            this.addMessage({
+              sender: this.counselorInfo.name,
+              content:
+                '🎉 Payment completed successfully!\n\n' +
+                '✨ Thank you. You now have full access to Vocational Guidance.\n\n' +
+                '🎯 Let\'s discover your professional path together!',
+              timestamp: new Date(),
+              isUser: false,
+            });
+            this.saveMessagesToSession();
+
+            const pendingMessage = this.storage.getSessionItem<string>('pendingVocationalMessage');
+            if (pendingMessage) {
+              this.storage.removeSessionItem('pendingVocationalMessage');
+              setTimeout(() => {
+                this.currentMessage = pendingMessage;
+                this.sendMessage();
+              }, 1000);
             }
-          }
-        })
-        .catch((error) => {
-          this.logger.error('Error verificando el pago vocacional:', error);
-        });
+          }, 1000);
+        } else {
+          this.paymentError = 'Payment could not be verified.';
+        }
+      } catch (error) {
+        this.logger.error('Error verificando pago de PayPal:', error);
+        this.paymentError = 'Error in payment verification';
+      }
     }
   }
   // Inicializar mensaje de bienvenida
@@ -536,18 +526,7 @@ export class MapaVocacionalComponent
     this.paymentError = null;
     this.isProcessingPayment = true;
 
-    if (this.paymentElement) {
-      try {
-        this.paymentElement.destroy();
-      } catch (error) {
-        this.logger.log('Error destruyendo elemento anterior:', error);
-      }
-      this.paymentElement = undefined;
-    }
-
     try {
-      const items = [{ id: 'vocational_counseling_unlimited', amount: 700 }];
-
       // ✅ CARGAR DATOS DESDE sessionStorage SI NO ESTÁN EN MEMORIA
       if (!this.userData) {
         this.logger.log(
@@ -583,86 +562,39 @@ export class MapaVocacionalComponent
         return;
       }
 
-      // ✅ VALIDAR CAMPOS INDIVIDUALES CON CONVERSIÓN A STRING
       const email = this.userData.email?.toString().trim();
 
-      if (!email ) {
+      if (!email) {
         this.logger.error('❌ Faltan campos requeridos para el pago vocacional');
-        const faltantes = [];
-        if (!email) faltantes.push('email');
-
-        this.paymentError = `Missing client data: ${faltantes.join(
-          ', '
-        )}. Please complete the form first.`;
+        this.paymentError = 'Email is required. Please complete the form first.';
         this.isProcessingPayment = false;
         this.showDataModal = true;
         return;
       }
 
-      // ✅ CREAR customerInfo SOLO SI TODOS LOS CAMPOS ESTÁN PRESENTES
-      const customerInfo = {
-        email: email,
+      // Store pending message
+      if (this.currentMessage && this.currentMessage.trim()) {
+        this.storage.setSessionItem('pendingVocationalMessage', this.currentMessage.trim());
+      }
+
+      const orderData = {
+        amount: '7.00',
+        currency: 'USD',
+        serviceName: 'Vocational Map',
+        returnPath: '/vocational-map',
+        cancelPath: '/vocational-map',
+        customerEmail: email,
       };
 
-      this.logger.log(
-        '📤 Enviando request de payment intent para vocacional con datos del cliente...'
-      );
-      this.logger.log('👤 Datos del cliente enviados:', customerInfo);
-
-      const requestBody = { items, customerInfo };
-
-      const response = await this.http
-        .post<{ clientSecret: string }>(
-          `${this.backendUrl}create-payment-intent`,
-          requestBody
-        )
-        .toPromise();
-
-      this.logger.log('📥 Respuesta de payment intent:', response);
-
-      if (!response || !response.clientSecret) {
-        throw new Error(
-          'Error obtaining payment information from server.'
-        );
-      }
-      this.clientSecret = response.clientSecret;
-
-      if (this.stripe && this.clientSecret) {
-        this.elements = this.stripe.elements({
-          clientSecret: this.clientSecret,
-          appearance: { theme: 'stripe' },
-        });
-        this.paymentElement = this.elements.create('payment');
-        this.isProcessingPayment = false;
-
-        setTimeout(() => {
-          const paymentElementContainer = document.getElementById(
-            'payment-element-container'
-          );
-          this.logger.log('🎯 Contenedor encontrado:', paymentElementContainer);
-
-          if (paymentElementContainer && this.paymentElement) {
-            this.logger.log('✅ Montando payment element vocacional...');
-            this.paymentElement.mount(paymentElementContainer);
-          } else {
-            this.logger.error('❌ Contenedor del elemento de pago no encontrado.');
-            this.paymentError = 'Cannot display payment form.';
-          }
-        }, 100);
-      } else {
-        throw new Error(
-          'Stripe.js or client secret key is not available.'
-        );
-      }
+      await this.paypalService.initiatePayment(orderData);
     } catch (error: any) {
       this.logger.error('❌ Error preparing vocational payment:', error);
-      this.logger.error('❌ Error details:', error.error || error);
       this.paymentError =
-        error.message ||
-        'Error initializing payment. Please try again.';
+        error.message || 'Error preparing the payment. Please try again.';
       this.isProcessingPayment = false;
     }
   }
+
   showWheelAfterDelay(delayMs: number = 3000): void {
     if (this.wheelTimer) {
       clearTimeout(this.wheelTimer);
@@ -833,108 +765,41 @@ export class MapaVocacionalComponent
   }
 
   async handlePaymentSubmit(): Promise<void> {
-    if (
-      !this.stripe ||
-      !this.elements ||
-      !this.clientSecret ||
-      !this.paymentElement
-    ) {
-      this.paymentError =
-        'The payment system is not initialized correctly.';
-      this.isProcessingPayment = false;
-      return;
-    }
-
     this.isProcessingPayment = true;
     this.paymentError = null;
 
-    const { error, paymentIntent } = await this.stripe.confirmPayment({
-      elements: this.elements,
-      confirmParams: {
-        return_url: window.location.origin + window.location.pathname,
-      },
-      redirect: 'if_required',
-    });
+    try {
+      const email = this.userData?.email?.toString().trim();
 
-    if (error) {
-      this.paymentError =
-        error.message || 'An unexpected error occurred during payment.';
-      this.isProcessingPayment = false;
-    } else if (paymentIntent) {
-      switch (paymentIntent.status) {
-        case 'succeeded':
-          this.logger.log('Payment successful for vocational consultations!');
-          this.hasUserPaidForVocational = true;
-          this.storage.setUserPaid('Vocational', true);
-          this.showPaymentModal = false;
-          this.paymentElement?.destroy();
-
-          this.blockedMessageId = null;
-          this.storage.removeBlockedMessageId('vocational');
-
-          this.addMessage({
-            sender: this.counselorInfo.name,
-            content:
-              '✨ Payment confirmed! You can now access all my expertise in vocational guidance. Let\'s continue exploring your ideal professional path. What aspect of your professional future would you like to delve into?',
-            timestamp: new Date(),
-            isUser: false,
-          });
-
-          // ✅ NUEVO: Procesar mensaje pendiente si existe
-          const pendingMessage = this.storage.getSessionItem<string>('pendingVocationalMessage');
-          if (pendingMessage) {
-            this.logger.log(
-              '📝 Procesando mensaje vocacional pendiente:',
-              pendingMessage
-            );
-            this.storage.removeSessionItem('pendingVocationalMessage');
-
-            // Procesar el mensaje pendiente después de un pequeño delay
-            setTimeout(() => {
-              this.processUserMessage(pendingMessage);
-            }, 1000);
-          }
-
-          this.shouldAutoScroll = true;
-          this.saveMessagesToSession();
-          break;
-        case 'processing':
-          this.paymentError =
-            'The payment is being processed. We will notify you when it is complete.';
-          break;
-        case 'requires_payment_method':
-          this.paymentError =
-            'Payment failed. Please try another payment method.';
-          this.isProcessingPayment = false;
-          break;
-        case 'requires_action':
-          this.paymentError =
-            'Additional action is required to complete the payment.';
-          this.isProcessingPayment = false;
-          break;
-        default:
-          this.paymentError = `Payment status: ${paymentIntent.status}. Please try again.`;
-          this.isProcessingPayment = false;
-          break;
+      if (!email) {
+        this.paymentError = 'Email is required';
+        this.isProcessingPayment = false;
+        return;
       }
-    } else {
-      this.paymentError = 'Unable to determine payment status.';
+
+      if (this.currentMessage && this.currentMessage.trim()) {
+        this.storage.setSessionItem('pendingVocationalMessage', this.currentMessage.trim());
+      }
+
+      const orderData = {
+        amount: '7.00',
+        currency: 'USD',
+        serviceName: 'Vocational Map',
+        returnPath: '/vocational-map',
+        cancelPath: '/vocational-map',
+        customerEmail: email,
+      };
+
+      await this.paypalService.initiatePayment(orderData);
+    } catch (error: any) {
+      this.logger.error('❌ Error en handlePaymentSubmit:', error);
+      this.paymentError = error.message || 'Error processing payment';
       this.isProcessingPayment = false;
     }
   }
 
   cancelPayment(): void {
     this.showPaymentModal = false;
-    this.clientSecret = null;
-    if (this.paymentElement) {
-      try {
-        this.paymentElement.destroy();
-      } catch (error) {
-        this.logger.log('Error al destruir elemento de pago:', error);
-      } finally {
-        this.paymentElement = undefined;
-      }
-    }
     this.isProcessingPayment = false;
     this.paymentError = null;
   }
@@ -1244,17 +1109,7 @@ export class MapaVocacionalComponent
     // 7. Reset de información personal
     this.personalInfo = {};
 
-    // 8. Reset de payment elements
-    if (this.paymentElement) {
-      try {
-        this.paymentElement.destroy();
-      } catch (error) {
-        this.logger.log('Error al destruir elemento de pago:', error);
-      } finally {
-        this.paymentElement = undefined;
-      }
-    }
-    this.clientSecret = null;
+    // 8. Reset de payment state
     this.isProcessingPayment = false;
     this.paymentError = null;
 

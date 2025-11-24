@@ -243,19 +243,6 @@
                   >
                 </div>
 
-                <div *ngIf="isProcessingPayment" class="payment-loading">
-                  <div class="loading-spinner"></div>
-                  <p>Preparing payment system...</p>
-                </div>
-
-                <div
-                  id="payment-element-container"
-                  class="payment-element-container"
-                  [hidden]="isProcessingPayment"
-                >
-                  <!-- Stripe Payment Element se monta aquí -->
-                </div>
-
                 <div *ngIf="paymentError" class="payment-error">
                   <span>{{ paymentError }}</span>
                 </div>
@@ -263,11 +250,11 @@
                 <div class="payment-actions">
                   <button
                     (click)="handlePaymentSubmit()"
-                    [disabled]="isProcessingPayment || !paymentElement"
+                    [disabled]="isProcessingPayment"
                     class="pay-button"
                   >
                     <span *ngIf="!isProcessingPayment"
-                      >💳 Pay and Continue</span
+                      >💳 Pay with PayPal</span
                     >
                     <span *ngIf="isProcessingPayment">Processing...</span>
                   </button>

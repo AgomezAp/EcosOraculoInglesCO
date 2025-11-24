@@ -17,12 +17,6 @@ import { MatInputModule } from '@angular/material/input';
 import { InformacionZodiacoService } from '../../services/informacion-zodiaco.service';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { HttpClient } from '@angular/common/http';
-import {
-  loadStripe,
-  Stripe,
-  StripeElements,
-  StripePaymentElement,
-} from '@stripe/stripe-js';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RecolectaDatosComponent } from '../recolecta-datos/recolecta-datos.component';
 import { Observable, of } from 'rxjs';
@@ -34,6 +28,7 @@ import {
 } from '../fortune-wheel/fortune-wheel.component';
 import { LoggerService } from '../../services/logger.service';
 import { StorageService } from '../../services/storage.service';
+import { PaypalService } from '../../services/paypal.service';
 interface ZodiacMessage {
   content: string;
   isUser: boolean;
@@ -110,10 +105,6 @@ export class InformacionZodiacoComponent
 
   // Variables para control de pagos
   showPaymentModal: boolean = false;
-  stripe: Stripe | null = null;
-  elements: StripeElements | undefined;
-  paymentElement: StripePaymentElement | undefined;
-  clientSecret: string | null = null;
   isProcessingPayment: boolean = false;
   paymentError: string | null = null;
   hasUserPaidForAstrology: boolean = false;
@@ -161,10 +152,10 @@ export class InformacionZodiacoComponent
     private http: HttpClient,
     private zodiacoService: InformacionZodiacoService,
     @Optional() @Inject(MAT_DIALOG_DATA) public data: any,
-    @Optional() public dialogRef: MatDialogRef<InformacionZodiacoComponent>
-  ,
+    @Optional() public dialogRef: MatDialogRef<InformacionZodiacoComponent>,
     private logger: LoggerService,
-    private storage: StorageService
+    private storage: StorageService,
+    private paypalService: PaypalService
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -230,62 +221,59 @@ export class InformacionZodiacoComponent
     }
   }
 
-  private checkPaymentStatus(): void {
-    const urlParams = new URLSearchParams(window.location.search);
-    const paymentIntent = urlParams.get('payment_intent');
-    const paymentIntentClientSecret = urlParams.get(
-      'payment_intent_client_secret'
-    );
+  private async checkPaymentStatus(): Promise<void> {
+    this.hasUserPaidForAstrology = this.storage.hasUserPaid('Astrology');
 
-    if (paymentIntent && paymentIntentClientSecret && this.stripe) {
-      this.stripe
-        .retrievePaymentIntent(paymentIntentClientSecret)
-        .then(({ paymentIntent }) => {
-          if (paymentIntent) {
-            switch (paymentIntent.status) {
-              case 'succeeded':
-                this.logger.log('✅ Pago astral confirmado desde URL');
-                this.hasUserPaidForAstrology = true;
-                this.storage.setUserPaid('Astrology', true);
-                this.blockedMessageId = null;
-                this.storage.removeBlockedMessageId('astrology');
+    const paymentStatus = this.paypalService.checkPaymentStatusFromUrl();
 
-                window.history.replaceState(
-                  {},
-                  document.title,
-                  window.location.pathname
-                );
+    if (paymentStatus && paymentStatus.status === 'COMPLETED') {
+      try {
+        const verification = await this.paypalService.verifyAndProcessPayment(
+          paymentStatus.token
+        );
 
-                const lastMessage = this.messages[this.messages.length - 1];
-                if (
-                  !lastMessage ||
-                  !lastMessage.content.includes('¡ Payment Confirmed!')
-                ) {
-                  const confirmationMsg = {
-                    isUser: false,
-                    content:
-                      '✨ Payment Confirmed! You can now consult the stars unlimitedly. The mysteries of the zodiac are at your disposal.',
-                    timestamp: new Date(),
-                  };
-                  this.messages.push(confirmationMsg);
-                  this.saveMessagesToSession();
-                }
-                break;
+        if (verification.valid && verification.status === 'approved') {
+          this.hasUserPaidForAstrology = true;
+          this.storage.setUserPaid('Astrology', true);
 
-              case 'processing':
-                this.logger.log('⏳ Pago astral en procesamiento');
-                break;
+          this.blockedMessageId = null;
+          this.storage.removeBlockedMessageId('astrology');
 
-              case 'requires_payment_method':
-                this.logger.log('❌ Pago astral falló');
-                this.clearSessionData();
-                break;
+          window.history.replaceState({}, document.title, window.location.pathname);
+
+          this.showPaymentModal = false;
+          this.isProcessingPayment = false;
+          this.paymentError = null;
+
+          setTimeout(() => {
+            const confirmationMsg = {
+              isUser: false,
+              content:
+                '🎉 Payment completed successfully!\n\n' +
+                '✨ Thank you. You now have full access to Zodiac readings.\n\n' +
+                '🌟 Let\'s explore the mysteries of the stars together!',
+              timestamp: new Date(),
+              sender: 'astrologer',
+            };
+            this.messages.push(confirmationMsg);
+            this.saveMessagesToSession();
+
+            const pendingMessage = this.storage.getSessionItem<string>('pendingAstrologyMessage');
+            if (pendingMessage) {
+              this.storage.removeSessionItem('pendingAstrologyMessage');
+              setTimeout(() => {
+                this.currentMessage = pendingMessage;
+                this.sendMessage();
+              }, 1000);
             }
-          }
-        })
-        .catch((error) => {
-          this.logger.error('Error verificando el pago astral:', error);
-        });
+          }, 1000);
+        } else {
+          this.paymentError = 'Payment could not be verified.';
+        }
+      } catch (error) {
+        this.logger.error('Error verificando pago de PayPal:', error);
+        this.paymentError = 'Error in payment verification';
+      }
     }
   }
 
@@ -297,15 +285,6 @@ export class InformacionZodiacoComponent
   }
 
   ngOnDestroy(): void {
-    if (this.paymentElement) {
-      try {
-        this.paymentElement.destroy();
-      } catch (error) {
-        this.logger.log('Error al destruir elemento de pago:', error);
-      } finally {
-        this.paymentElement = undefined;
-      }
-    }
     if (this.wheelTimer) {
       clearTimeout(this.wheelTimer);
     }
@@ -712,18 +691,7 @@ export class InformacionZodiacoComponent
     this.paymentError = null;
     this.isProcessingPayment = true;
 
-    if (this.paymentElement) {
-      try {
-        this.paymentElement.destroy();
-      } catch (error) {
-        this.logger.log('Error destruyendo elemento anterior:', error);
-      }
-      this.paymentElement = undefined;
-    }
-
     try {
-      const items = [{ id: 'astrology_consultation_unlimited', amount: 700 }];
-
       // ✅ CARGAR DATOS DESDE sessionStorage SI NO ESTÁN EN MEMORIA
       if (!this.userData) {
         this.logger.log(
@@ -759,194 +727,74 @@ export class InformacionZodiacoComponent
         return;
       }
 
-      // ✅ VALIDAR CAMPOS INDIVIDUALES CON CONVERSIÓN A STRING
-    
       const email = this.userData.email?.toString().trim();
-    
-
 
       if (!email) {
         this.logger.error('❌ Faltan campos requeridos para el pago de astrología');
-        const faltantes = [];
-        if (!email) faltantes.push('email');
-
-        this.paymentError = `Missing client data: ${faltantes.join(
-          ', '
-        )}. Please complete the form first.`;
+        this.paymentError = 'Email is required. Please complete the form first.';
         this.isProcessingPayment = false;
         this.showDataModal = true;
         return;
       }
 
-      // ✅ CREAR customerInfo SOLO SI TODOS LOS CAMPOS ESTÁN PRESENTES
-      const customerInfo = {
-        email: email,
+      // Store pending message
+      if (this.currentMessage && this.currentMessage.trim()) {
+        this.storage.setSessionItem('pendingAstrologyMessage', this.currentMessage.trim());
+      }
+
+      const orderData = {
+        amount: '7.00',
+        currency: 'USD',
+        serviceName: 'Zodiac Information',
+        returnPath: '/zodiac-info',
+        cancelPath: '/zodiac-info',
+        customerEmail: email,
       };
 
-      this.logger.log(
-        '📤 Enviando request de payment intent para astrología con datos del cliente...'
-      );
-      this.logger.log('👤 Datos del cliente enviados:', customerInfo);
-
-      const requestBody = { items, customerInfo };
-
-      const response = await this.http
-        .post<{ clientSecret: string }>(
-          `${this.backendUrl}create-payment-intent`,
-          requestBody
-        )
-        .toPromise();
-
-      this.logger.log('📥 Respuesta de payment intent:', response);
-
-      if (!response || !response.clientSecret) {
-        throw new Error(
-          'Error obtaining payment information from the server.'
-        );
-      }
-      this.clientSecret = response.clientSecret;
-
-      if (this.stripe && this.clientSecret) {
-        this.elements = this.stripe.elements({
-          clientSecret: this.clientSecret,
-          appearance: { theme: 'stripe' },
-        });
-        this.paymentElement = this.elements.create('payment');
-        this.isProcessingPayment = false;
-
-        setTimeout(() => {
-          const paymentElementContainer = document.getElementById(
-            'payment-element-container'
-          );
-          this.logger.log('🎯 Contenedor encontrado:', paymentElementContainer);
-
-          if (paymentElementContainer && this.paymentElement) {
-            this.logger.log('✅ Montando payment element astral...');
-            this.paymentElement.mount(paymentElementContainer);
-          } else {
-            this.logger.error('❌ Contenedor del elemento de pago no encontrado.');
-            this.paymentError = 'Cant show payment form.';
-          }
-        }, 100);
-      } else {
-        throw new Error(
-          'Stripe.js or the client secret key are not available.'
-        );
-      }
+      await this.paypalService.initiatePayment(orderData);
     } catch (error: any) {
       this.logger.error('❌ Error al preparar el pago astral:', error);
-      this.logger.error('❌ Detalles del error:', error.error || error);
       this.paymentError =
-        error.message ||
-        'Error al inicializar el pago. Por favor, inténtalo de nuevo.';
+        error.message || 'Error preparing the payment. Please try again.';
       this.isProcessingPayment = false;
     }
   }
   async handlePaymentSubmit(): Promise<void> {
-    if (
-      !this.stripe ||
-      !this.elements ||
-      !this.clientSecret ||
-      !this.paymentElement
-    ) {
-      this.paymentError =
-        'El sistema de pago no está inicializado correctamente.';
-      this.isProcessingPayment = false;
-      return;
-    }
-
     this.isProcessingPayment = true;
     this.paymentError = null;
 
-    const { error, paymentIntent } = await this.stripe.confirmPayment({
-      elements: this.elements,
-      confirmParams: {
-        return_url: window.location.origin + window.location.pathname,
-      },
-      redirect: 'if_required',
-    });
+    try {
+      const email = this.userData?.email?.toString().trim();
 
-    if (error) {
-      this.paymentError =
-        error.message || 'An unexpected error occurred during payment.';
-      this.isProcessingPayment = false;
-    } else if (paymentIntent) {
-      switch (paymentIntent.status) {
-        case 'succeeded':
-          this.logger.log('¡Pago exitoso para consultas astrales!');
-          this.hasUserPaidForAstrology = true;
-          this.storage.setUserPaid('Astrology', true);
-          this.showPaymentModal = false;
-          this.paymentElement?.destroy();
-
-          this.blockedMessageId = null;
-          this.storage.removeBlockedMessageId('astrology');
-
-          const confirmationMsg = {
-            isUser: false,
-            content:
-              '✨ Payment confirmed! You can now consult the stars unlimitedly. The mysteries of the zodiac are at your disposal. What other astral aspect would you like to explore?',
-            timestamp: new Date(),
-          };
-          this.messages.push(confirmationMsg);
-
-          // ✅ NUEVO: Procesar mensaje pendiente si existe
-          const pendingMessage = this.storage.getSessionItem<string>('pendingAstrologyMessage');
-          if (pendingMessage) {
-            this.logger.log(
-              '📝 Procesando mensaje astral pendiente:',
-              pendingMessage
-            );
-            this.storage.removeSessionItem('pendingAstrologyMessage');
-
-            // Procesar el mensaje pendiente después de un pequeño delay
-            setTimeout(() => {
-              this.processUserMessage(pendingMessage);
-            }, 1000);
-          }
-
-          this.shouldAutoScroll = true;
-          this.saveMessagesToSession();
-          break;
-        case 'processing':
-          this.paymentError =
-            'The payment is being processed. We will notify you when it is complete.';
-          break;
-        case 'requires_payment_method':
-          this.paymentError =
-            'Payment failed. Please try another payment method.';
-          this.isProcessingPayment = false;
-          break;
-        case 'requires_action':
-          this.paymentError =
-            'Additional action is required to complete the payment.';
-          this.isProcessingPayment = false;
-          break;
-        default:
-          this.paymentError = `Payment status: ${paymentIntent.status}. Please try again.`;
-          this.isProcessingPayment = false;
-          break;
+      if (!email) {
+        this.paymentError = 'Email is required';
+        this.isProcessingPayment = false;
+        return;
       }
-    } else {
-      this.paymentError = 'Could not determine payment status.';
+
+      if (this.currentMessage && this.currentMessage.trim()) {
+        this.storage.setSessionItem('pendingAstrologyMessage', this.currentMessage.trim());
+      }
+
+      const orderData = {
+        amount: '7.00',
+        currency: 'USD',
+        serviceName: 'Zodiac Information',
+        returnPath: '/zodiac-info',
+        cancelPath: '/zodiac-info',
+        customerEmail: email,
+      };
+
+      await this.paypalService.initiatePayment(orderData);
+    } catch (error: any) {
+      this.logger.error('❌ Error en handlePaymentSubmit:', error);
+      this.paymentError = error.message || 'Error processing payment';
       this.isProcessingPayment = false;
     }
   }
 
   cancelPayment(): void {
     this.showPaymentModal = false;
-    this.clientSecret = null;
-
-    if (this.paymentElement) {
-      try {
-        this.paymentElement.destroy();
-      } catch (error) {
-        this.logger.log('Error al destruir elemento de pago:', error);
-      } finally {
-        this.paymentElement = undefined;
-      }
-    }
-
     this.isProcessingPayment = false;
     this.paymentError = null;
   }

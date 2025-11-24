@@ -29,12 +29,6 @@ import {
   LoveExpertInfo,
 } from '../../services/calculadora-amor.service';
 import { Subject, takeUntil } from 'rxjs';
-import {
-  loadStripe,
-  Stripe,
-  StripeElements,
-  StripePaymentElement,
-} from '@stripe/stripe-js';
 import { HttpClient } from '@angular/common/http';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RecolectaDatosComponent } from '../recolecta-datos/recolecta-datos.component';
@@ -45,6 +39,7 @@ import {
 } from '../fortune-wheel/fortune-wheel.component';
 import { LoggerService } from '../../services/logger.service';
 import { StorageService } from '../../services/storage.service';
+import { PaypalService } from '../../services/paypal.service';
 @Component({
   selector: 'app-calculadora-amor',
   imports: [
@@ -87,12 +82,8 @@ export class CalculadoraAmorComponent
   private shouldAutoScroll = true;
   private lastMessageCount = 0;
 
-  // Variables para control de pagos
+  // Variables para control de pagos con PayPal
   showPaymentModal: boolean = false;
-  stripe: Stripe | null = null;
-  elements: StripeElements | undefined;
-  paymentElement: StripePaymentElement | undefined;
-  clientSecret: string | null = null;
   isProcessingPayment: boolean = false;
   paymentError: string | null = null;
   hasUserPaidForLove: boolean = false;
@@ -157,10 +148,10 @@ export class CalculadoraAmorComponent
   constructor(
     private calculadoraAmorService: CalculadoraAmorService,
     private formBuilder: FormBuilder,
-    private http: HttpClient
-  ,
+    private http: HttpClient,
     private logger: LoggerService,
-    private storage: StorageService
+    private storage: StorageService,
+    private paypalService: PaypalService
   ) {
     this.compatibilityForm = this.createCompatibilityForm();
   }
@@ -268,65 +259,58 @@ export class CalculadoraAmorComponent
       );
     }
   }
-  private checkPaymentStatus(): void {
-    const urlParams = new URLSearchParams(window.location.search);
-    const paymentIntent = urlParams.get('payment_intent');
-    const paymentIntentClientSecret = urlParams.get(
-      'payment_intent_client_secret'
-    );
+  private async checkPaymentStatus(): Promise<void> {
+    this.hasUserPaidForLove = this.storage.hasUserPaid('Love');
 
-    if (paymentIntent && paymentIntentClientSecret && this.stripe) {
-      this.logger.log('🔍 Verificando estado del pago de amor...');
+    const paymentStatus = this.paypalService.checkPaymentStatusFromUrl();
 
-      this.stripe
-        .retrievePaymentIntent(paymentIntentClientSecret)
-        .then(({ paymentIntent }) => {
-          if (paymentIntent) {
-            switch (paymentIntent.status) {
-              case 'succeeded':
-                this.logger.log('✅ Pago de amor confirmado desde URL');
-                this.hasUserPaidForLove = true;
-                this.storage.setUserPaid('Love', true);
-                this.blockedMessageId = null;
-                this.storage.removeBlockedMessageId('love');
+    if (paymentStatus && paymentStatus.status === 'COMPLETED') {
+      try {
+        const verification = await this.paypalService.verifyAndProcessPayment(
+          paymentStatus.token
+        );
 
-                window.history.replaceState(
-                  {},
-                  document.title,
-                  window.location.pathname
-                );
+        if (verification.valid && verification.status === 'approved') {
+          this.hasUserPaidForLove = true;
+          this.storage.setUserPaid('Love', true);
 
-                const lastMessage =
-                  this.conversationHistory[this.conversationHistory.length - 1];
-                if (
-                  !lastMessage ||
-                  !lastMessage.message.includes('¡ Payment Confirmed!')
-                ) {
-                  const confirmationMsg: ConversationMessage = {
-                    role: 'love_expert',
-                    message:
-                      '✨ Payment confirmed! Now you can access all the love compatibility readings you desire. The secrets of love are at your disposal. What other romantic aspect would you like to explore? 💕',
-                    timestamp: new Date(),
-                  };
-                  this.conversationHistory.push(confirmationMsg);
-                  this.saveMessagesToSession();
-                }
-                break;
+          this.blockedMessageId = null;
+          this.storage.removeBlockedMessageId('love');
 
-              case 'processing':
-                this.logger.log('⏳ Processing payment...');
-                break;
+          window.history.replaceState({}, document.title, window.location.pathname);
 
-              case 'requires_payment_method':
-                this.logger.log('❌ Payment failed');
-                this.clearSessionData();
-                break;
+          this.showPaymentModal = false;
+          this.isProcessingPayment = false;
+          this.paymentError = null;
+
+          setTimeout(() => {
+            const confirmationMsg: ConversationMessage = {
+              role: 'love_expert',
+              message:
+                '🎉 Payment completed successfully!\n\n' +
+                '✨ Thank you. You now have full access to Love Compatibility readings.\n\n' +
+                '💕 Let\'s explore the mysteries of love together!',
+              timestamp: new Date(),
+            };
+            this.conversationHistory.push(confirmationMsg);
+            this.saveMessagesToSession();
+
+            const pendingMessage = this.storage.getSessionItem<string>('pendingLoveMessage');
+            if (pendingMessage) {
+              this.storage.removeSessionItem('pendingLoveMessage');
+              setTimeout(() => {
+                this.currentMessage = pendingMessage;
+                this.sendMessage();
+              }, 1000);
             }
-          }
-        })
-        .catch((error: any) => {
-          this.logger.error('Failing to verify the payment:', error);
-        });
+          }, 1000);
+        } else {
+          this.paymentError = 'Payment could not be verified.';
+        }
+      } catch (error) {
+        this.logger.error('Error verificando pago de PayPal:', error);
+        this.paymentError = 'Error in payment verification';
+      }
     }
   }
   openDataModalForPayment(): void {
@@ -371,16 +355,6 @@ export class CalculadoraAmorComponent
 
     this.destroy$.next();
     this.destroy$.complete();
-
-    if (this.paymentElement) {
-      try {
-        this.paymentElement.destroy();
-      } catch (error) {
-        this.logger.log('Error al destruir elemento de pago:', error);
-      } finally {
-        this.paymentElement = undefined;
-      }
-    }
   }
 
   autoResize(event: any): void {
@@ -689,18 +663,7 @@ export class CalculadoraAmorComponent
     this.paymentError = null;
     this.isProcessingPayment = true;
 
-    if (this.paymentElement) {
-      try {
-        this.paymentElement.destroy();
-      } catch (error) {
-        this.logger.log('Error destruyendo elemento anterior:', error);
-      }
-      this.paymentElement = undefined;
-    }
-
     try {
-      const items = [{ id: 'love_compatibility_unlimited', amount: 700 }];
-
       // ✅ CARGAR DATOS DESDE sessionStorage SI NO ESTÁN EN MEMORIA
       if (!this.userData) {
         this.logger.log(
@@ -735,87 +698,32 @@ export class CalculadoraAmorComponent
 
       // ✅ VALIDAR CAMPOS INDIVIDUALES CON CONVERSIÓN A STRING
       const email = this.userData.email?.toString().trim();
-     
 
-      if (!email ) {
+      if (!email) {
         this.logger.error('❌ Faltan campos requeridos para el pago del amor');
-        const faltantes = [];
-        if (!email) faltantes.push('email');
-
-        this.paymentError = `Faltan datos del cliente: ${faltantes.join(
-          ', '
-        )}. Por favor, completa el formulario primero.`;
+        this.paymentError = 'Email is required. Please complete the form first.';
         this.isProcessingPayment = false;
         this.showDataModal = true;
         return;
       }
 
-      // ✅ CREAR customerInfo SOLO SI TODOS LOS CAMPOS ESTÁN PRESENTES
-      const customerInfo = {
-        email: email,
+      // Store pending message
+      if (this.currentMessage && this.currentMessage.trim()) {
+        this.storage.setSessionItem('pendingLoveMessage', this.currentMessage.trim());
+      }
+
+      const orderData = {
+        amount: '7.00',
+        currency: 'USD',
+        serviceName: 'Love Calculator',
+        returnPath: '/love-calculator',
+        cancelPath: '/love-calculator',
+        customerEmail: email,
       };
 
-      this.logger.log(
-        '📤 Enviando request de payment intent para amor con datos del cliente...'
-      );
-      this.logger.log('👤 Datos del cliente enviados:', customerInfo);
-
-      const requestBody = { items, customerInfo };
-
-      const response = await this.http
-        .post<{ clientSecret: string }>(
-          `${this.backendUrl}create-payment-intent`,
-          requestBody
-        )
-        .toPromise();
-
-      this.logger.log('📥 Respuesta de payment intent:', response);
-
-      if (!response || !response.clientSecret) {
-        throw new Error('Error obtaining payment information from the server.');
-      }
-      this.clientSecret = response.clientSecret;
-
-      if (this.stripe && this.clientSecret) {
-        this.elements = this.stripe.elements({
-          clientSecret: this.clientSecret,
-          appearance: {
-            theme: 'night',
-            variables: {
-              colorPrimary: '#ff69b4',
-              colorBackground: 'rgba(255, 105, 180, 0.1)',
-              colorText: '#ffffff',
-              colorDanger: '#ef4444',
-              borderRadius: '8px',
-            },
-          },
-        });
-        this.paymentElement = this.elements.create('payment');
-
-        this.isProcessingPayment = false;
-
-        setTimeout(() => {
-          const paymentElementContainer = document.getElementById(
-            'payment-element-container-love'
-          );
-          this.logger.log('🎯 Contenedor encontrado:', paymentElementContainer);
-
-          if (paymentElementContainer && this.paymentElement) {
-            this.logger.log('✅ Montando payment element...');
-            this.paymentElement.mount(paymentElementContainer);
-          } else {
-            this.logger.error('❌ Contenedor del elemento de pago no encontrado.');
-            this.paymentError = 'Could not display the payment form.';
-          }
-        }, 100);
-      } else {
-        throw new Error(
-          'Stripe.js o la clave secreta del cliente no están disponibles.'
-        );
-      }
+      await this.paypalService.initiatePayment(orderData);
     } catch (error: any) {
       this.logger.error('❌ Error al preparar el pago:', error);
-      this.logger.error('❌ Detalles del error:', error.error || error);
       this.paymentError =
         error.message || 'Error preparing the payment. Please try again.';
       this.isProcessingPayment = false;
@@ -898,109 +806,41 @@ export class CalculadoraAmorComponent
   }
 
   async handlePaymentSubmit(): Promise<void> {
-    if (
-      !this.stripe ||
-      !this.elements ||
-      !this.clientSecret ||
-      !this.paymentElement
-    ) {
-      this.paymentError = 'Payment system not properly initialized.';
-      this.isProcessingPayment = false;
-      return;
-    }
-
     this.isProcessingPayment = true;
     this.paymentError = null;
 
-    const { error, paymentIntent } = await this.stripe.confirmPayment({
-      elements: this.elements,
-      confirmParams: {
-        return_url: window.location.origin + window.location.pathname,
-      },
-      redirect: 'if_required',
-    });
+    try {
+      const email = this.userData?.email?.toString().trim();
 
-    if (error) {
-      this.paymentError =
-        error.message || 'An unexpected error occurred during payment.';
-      this.isProcessingPayment = false;
-    } else if (paymentIntent) {
-      switch (paymentIntent.status) {
-        case 'succeeded':
-          this.logger.log('¡Pago exitoso para amor!');
-          this.hasUserPaidForLove = true;
-          this.storage.setUserPaid('Love', true);
-          this.showPaymentModal = false;
-          this.paymentElement?.destroy();
-
-          this.blockedMessageId = null;
-          this.storage.removeBlockedMessageId('love');
-
-          const confirmationMsg: ConversationMessage = {
-            role: 'love_expert',
-            message:
-              '✨ Payment confirmed! You can now access all the love compatibility readings you desire. The secrets of true love will be revealed to you. What other romantic aspect would you like to explore? 💕',
-            timestamp: new Date(),
-          };
-          this.conversationHistory.push(confirmationMsg);
-
-          // ✅ NUEVO: Procesar mensaje pendiente si existe
-          const pendingMessage = this.storage.getSessionItem<string>('pendingLoveMessage');
-          if (pendingMessage) {
-            this.logger.log(
-              '📝 Procesando mensaje de amor pendiente:',
-              pendingMessage
-            );
-            this.storage.removeSessionItem('pendingLoveMessage');
-
-            // Procesar el mensaje pendiente después de un pequeño delay
-            setTimeout(() => {
-              this.processLoveUserMessage(pendingMessage);
-            }, 1000);
-          }
-
-          this.shouldAutoScroll = true;
-          this.saveMessagesToSession();
-          break;
-        case 'processing':
-          this.paymentError =
-            'Payment is being processed. We will notify you when it is complete.';
-          break;
-        case 'requires_payment_method':
-          this.paymentError =
-            'Payment failed. Please try another payment method.';
-          this.isProcessingPayment = false;
-          break;
-        case 'requires_action':
-          this.paymentError =
-            'Additional action is required to complete the payment.';
-          this.isProcessingPayment = false;
-          break;
-        default:
-          this.paymentError = `Payment status: ${paymentIntent.status}. Please try again.`;
-          this.isProcessingPayment = false;
-          break;
+      if (!email) {
+        this.paymentError = 'Email is required';
+        this.isProcessingPayment = false;
+        return;
       }
-    } else {
-      this.paymentError = 'Could not determine payment status.';
+
+      if (this.currentMessage && this.currentMessage.trim()) {
+        this.storage.setSessionItem('pendingLoveMessage', this.currentMessage.trim());
+      }
+
+      const orderData = {
+        amount: '7.00',
+        currency: 'USD',
+        serviceName: 'Love Calculator',
+        returnPath: '/love-calculator',
+        cancelPath: '/love-calculator',
+        customerEmail: email,
+      };
+
+      await this.paypalService.initiatePayment(orderData);
+    } catch (error: any) {
+      this.logger.error('❌ Error en handlePaymentSubmit:', error);
+      this.paymentError = error.message || 'Error processing payment';
       this.isProcessingPayment = false;
     }
   }
 
   cancelPayment(): void {
     this.showPaymentModal = false;
-    this.clientSecret = null;
-
-    if (this.paymentElement) {
-      try {
-        this.paymentElement.destroy();
-      } catch (error) {
-        this.logger.log('Error al destruir elemento de pago:', error);
-      } finally {
-        this.paymentElement = undefined;
-      }
-    }
-
     this.isProcessingPayment = false;
     this.paymentError = null;
   }
