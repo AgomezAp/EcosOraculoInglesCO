@@ -160,7 +160,7 @@ async handlePaymentSubmit(): Promise<void> {
 
   try {
     const orderData = {
-      amount: '5.00',
+      amount: '4.00',
       currency: 'EUR',
       serviceName: '<NOMBRE DEL SERVICIO>',
       returnPath: '/<RUTA-DEL-COMPONENTE>',
