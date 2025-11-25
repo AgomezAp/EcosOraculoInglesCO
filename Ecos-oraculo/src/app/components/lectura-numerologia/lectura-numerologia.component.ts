@@ -734,7 +734,7 @@ export class LecturaNumerologiaComponent
     try {
       const orderData = {
         amount: '7.00',
-        currency: 'EUR',
+        currency: 'USD',
         serviceName: 'Numerology Reading',
         returnPath: '/numerology',
         cancelPath: '/numerology',
