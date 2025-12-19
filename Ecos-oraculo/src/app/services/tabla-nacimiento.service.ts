@@ -18,6 +18,9 @@ export interface BirthChartRequest {
     role: 'user' | 'astrologer';
     message: string;
   }>;
+  // ✅ NEW FIELDS for the 3 free messages system
+  messageCount?: number;
+  isPremiumUser?: boolean;
 }
 
 export interface BirthChartResponse {
@@ -26,6 +29,11 @@ export interface BirthChartResponse {
   error?: string;
   code?: string;
   timestamp: string;
+  // ✅ NEW FIELDS returned by the backend
+  freeMessagesRemaining?: number;
+  showPaywall?: boolean;
+  paywallMessage?: string;
+  isCompleteResponse?: boolean;
 }
 
 export interface AstrologerInfo {
@@ -37,8 +45,10 @@ export interface AstrologerInfo {
     description: string;
     services: string[];
   };
+  freeMessagesLimit?: number;
   timestamp: string;
 }
+
 @Injectable({
   providedIn: 'root'
 })
@@ -47,6 +57,25 @@ export class TablaNacimientoService {
 
   constructor(private http: HttpClient) {}
 
+  /**
+   * ✅ MAIN METHOD: Send message with message counter
+   */
+  chatWithAstrologerWithCount(
+    request: BirthChartRequest,
+    messageCount: number,
+    isPremiumUser: boolean
+  ): Observable<BirthChartResponse> {
+    const fullRequest: BirthChartRequest = {
+      ...request,
+      messageCount,
+      isPremiumUser,
+    };
+    return this.http.post<BirthChartResponse>(`${this.apiUrl}/chat`, fullRequest);
+  }
+
+  /**
+   * Legacy method for compatibility
+   */
   chatWithAstrologer(request: BirthChartRequest): Observable<BirthChartResponse> {
     return this.http.post<BirthChartResponse>(`${this.apiUrl}/chat`, request);
   }
