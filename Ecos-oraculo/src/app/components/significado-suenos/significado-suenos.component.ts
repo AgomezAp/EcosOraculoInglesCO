@@ -6,9 +6,12 @@ import {
   OnDestroy,
   OnInit,
   ViewChild,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
 } from '@angular/core';
 import {
   ConversationMessage,
+  DreamChatResponse,
   DreamInterpreterData,
   InterpretadorSuenosService,
 } from '../../services/interpretador-suenos.service';
@@ -19,16 +22,16 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { PaypalService } from '../../services/paypal.service';
+
 import { HttpClient } from '@angular/common/http';
 import { RecolectaDatosComponent } from '../recolecta-datos/recolecta-datos.component';
-import { environment } from '../../environments/environments';
 import {
   FortuneWheelComponent,
   Prize,
 } from '../fortune-wheel/fortune-wheel.component';
-import { LoggerService } from '../../services/logger.service';
-import { StorageService } from '../../services/storage.service';
-import { PaypalService } from '../../services/paypal.service';
+import { environment } from '../../environments/environments.prod';
+
 @Component({
   selector: 'app-significado-suenos',
   imports: [
@@ -40,17 +43,17 @@ import { PaypalService } from '../../services/paypal.service';
     MatIconModule,
     MatProgressSpinnerModule,
     RecolectaDatosComponent,
-    FortuneWheelComponent,
   ],
   templateUrl: './significado-suenos.component.html',
   styleUrl: './significado-suenos.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SignificadoSuenosComponent
   implements OnInit, OnDestroy, AfterViewChecked, AfterViewInit
 {
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
 
-  // Variables principales del chat
+  // Main chat variables
   messageText: string = '';
   messageInput = new FormControl('');
   messages: ConversationMessage[] = [];
@@ -61,245 +64,90 @@ export class SignificadoSuenosComponent
   private shouldAutoScroll = true;
   private lastMessageCount = 0;
 
+  // ✅ NEW: 3 free messages system
+  private userMessageCount: number = 0;
+  private readonly FREE_MESSAGES_LIMIT = 3;
+
+  // Fortune wheel
   showFortuneWheel: boolean = false;
   wheelPrizes: Prize[] = [
     {
       id: '1',
-      name: '3 Tiradas más',
+      name: '3 Free Interpretations',
       color: '#4ecdc4',
       icon: '🌙',
     },
     {
       id: '2',
-      name: '1 Premium Analisis',
+      name: '1 Premium Dream Analysis',
       color: '#45b7d1',
       icon: '✨',
     },
     {
       id: '4',
-      name: '¡Try again!',
+      name: 'Try again!',
       color: '#ff7675',
       icon: '🔄',
     },
   ];
   private wheelTimer: any;
 
-  //Datos para enviar
+  // Data to send
   showDataModal: boolean = false;
   userData: any = null;
 
-  // Variables para control de pagos con PayPal
+  // Payment control variables
   showPaymentModal: boolean = false;
+  clientSecret: string | null = null;
   isProcessingPayment: boolean = false;
   paymentError: string | null = null;
   hasUserPaidForDreams: boolean = false;
-  firstQuestionAsked: boolean = false;
 
-  // NUEVA PROPIEDAD para controlar mensajes bloqueados
+  // Property to control blocked messages
   blockedMessageId: string | null = null;
 
-  textareaHeight: number = 25; // Altura inicial
+  textareaHeight: number = 25;
   private readonly minTextareaHeight = 45;
   private readonly maxTextareaHeight = 120;
-
-  // Configuración de Stripe desde environment
   private backendUrl = environment.apiUrl;
 
   interpreterData: DreamInterpreterData = {
-    name: 'High Priestess Alma',
-    specialty: 'Dream interpretation and oniric messages',
-    experience: 'Centuries interpreting the messages of the subconscious',
+    name: 'Master Alma',
+    specialty: 'Dream interpretation and oneiric symbolism',
+    experience:
+      'Centuries of experience interpreting messages from the subconscious',
   };
 
-  // Frases de bienvenida aleatorias
+  // Random welcome messages
   welcomeMessages = [
-    'Ah, I see you have come to me seeking to unravel the mysteries of your dream world... Dreams are windows to the soul. Tell me, what visions have visited you?',
-    'The cosmic energies whisper to me that you have dreams in need of interpretation. I am High Priestess Alma, guardian of dreamlike secrets. What message from the subconscious troubles you?',
-    'Welcome, dream traveler. The astral planes have shown me your arrival. Allow me to guide you through the symbols and mysteries of your nocturnal visions.',
-    'The dream crystal illuminates before your presence... I sense that you carry visions that need deciphering. Trust in my ancestral wisdom and share your dreams with me.',
+    "Ah, I see you've come to decipher the mysteries of your dream world... Dreams are windows to the soul. Tell me, what visions have visited you?",
+    'The cosmic energies whisper to me that you have dreams that must be interpreted. I am Master Alma, guardian of oneiric secrets. What message from the subconscious worries you?',
+    'Welcome, dream traveler. The astral planes have shown me your arrival. Let me guide you through the symbols and mysteries of your nocturnal visions.',
+    'The dream crystal shines with your presence... I sense you carry visions that must be deciphered. Trust in my ancient wisdom and share your dreams with me.',
   ];
 
   constructor(
     private dreamService: InterpretadorSuenosService,
     private http: HttpClient,
     private elRef: ElementRef<HTMLElement>,
-    private logger: LoggerService,
-    private storage: StorageService,
+    private cdr: ChangeDetectorRef,
     private paypalService: PaypalService
   ) {}
+
   ngAfterViewInit(): void {
-    this.setVideosSpeed(0.66); // 0.5 = más lento, 1 = normal
+    this.setVideosSpeed(0.66);
   }
+
   async ngOnInit(): Promise<void> {
-    // Usar StorageService en lugar de sessionStorage directo
-    this.hasUserPaidForDreams = this.storage.hasUserPaidForDreams();
-    this.userData = this.storage.getUserData();
+    // Check payment for this specific service
+    this.hasUserPaidForDreams =
+      sessionStorage.getItem('hasUserPaidForDreams_traumdeutung') === 'true';
 
-    this.logger.info('User data loaded:', this.userData);
-
-    const savedMessages = this.storage.getDreamMessages();
-    const savedFirstQuestion = this.storage.getSessionItem<boolean>('firstQuestionAsked');
-    const savedBlockedMessageId = this.storage.getSessionItem<string>('blockedMessageId');
-
-    if (savedMessages && savedMessages.length > 0) {
-      try {
-        this.messages = savedMessages.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp),
-        }));
-        this.firstQuestionAsked = savedFirstQuestion || false;
-        this.blockedMessageId = savedBlockedMessageId || null;
-        this.hasStartedConversation = true;
-        this.logger.info('Messages restored from storage');
-      } catch (error) {
-        this.logger.error('Error restoring messages:', error);
-        this.clearSessionData();
-        this.startConversation();
-      }
-    } else {
-      this.startConversation();
+    // ✅ NEW: Load message counter
+    const savedMessageCount = sessionStorage.getItem('dreamUserMessageCount');
+    if (savedMessageCount) {
+      this.userMessageCount = parseInt(savedMessageCount, 10);
     }
-    
-    await this.checkPaymentStatus();
-  }
-
-  private setVideosSpeed(rate: number): void {
-    const host = this.elRef.nativeElement;
-    const videos = host.querySelectorAll<HTMLVideoElement>('video');
-    videos.forEach((v) => {
-      const apply = () => (v.playbackRate = rate);
-      if (v.readyState >= 1) apply();
-      else v.addEventListener('loadedmetadata', apply, { once: true });
-    });
-  }
-
-  showWheelAfterDelay(delayMs: number = 3000): void {
-    if (this.wheelTimer) {
-      clearTimeout(this.wheelTimer);
-    }
-
-    this.logger.log('⏰ Timer configurado para', delayMs, 'ms');
-
-    this.wheelTimer = setTimeout(() => {
-      this.logger.log('🎰 Verificando si puede mostrar ruleta...');
-
-      // ✅ USAR MÉTODO ESTÁTICO DEL COMPONENTE RULETA
-      if (
-        FortuneWheelComponent.canShowWheel() &&
-        !this.showPaymentModal &&
-        !this.showDataModal
-      ) {
-        this.logger.log('✅ Mostrando ruleta - usuario puede girar');
-        this.showFortuneWheel = true;
-      } else {
-        this.logger.log('❌ No se puede mostrar ruleta en este momento');
-      }
-    }, delayMs);
-  }
-
-  onPrizeWon(prize: Prize): void {
-    this.logger.log('🎉 Premio onírico ganado:', prize);
-
-    // Mostrar mensaje del intérprete sobre el premio
-    const prizeMessage: ConversationMessage = {
-      role: 'interpreter',
-      message: `🌙 Cosmic energies have blessed you! You have won: **${prize.name}** ${prize.icon}\n\nThis gift from the oniric universe has been activated for you. The mysteries of dreams are revealed to you with greater clarity. May fortune accompany you in your future interpretations!`,
-      timestamp: new Date(),
-    };
-
-    this.messages.push(prizeMessage);
-    this.shouldAutoScroll = true;
-    this.saveMessagesToSession();
-
-    // Procesar el premio
-    this.processDreamPrize(prize);
-  }
-  private processDreamPrize(prize: Prize): void {
-    switch (prize.id) {
-      case '1': // 3 Interpretaciones Gratis
-        this.addFreeDreamConsultations(3);
-        break;
-      case '2': // 1 Análisis Premium - ACCESO COMPLETO
-        this.logger.log('✨ Premio Premium ganado - Acceso ilimitado concedido');
-        this.hasUserPaidForDreams = true;
-        this.storage.setUserPaid('Dreams', true);
-
-        // Desbloquear cualquier mensaje bloqueado
-        if (this.blockedMessageId) {
-          this.blockedMessageId = null;
-          this.storage.removeBlockedMessageId('');
-          this.logger.log('🔓 Mensaje desbloqueado con acceso premium de sueños');
-        }
-
-        // Agregar mensaje especial para este premio
-        const premiumMessage: ConversationMessage = {
-          role: 'interpreter',
-          message:
-            '✨ **You have unlocked Premium access!** ✨\n\nThe mysteries of the dream world have smiled upon you in extraordinary ways. You now have unlimited access to all the wisdom of dreams. You can inquire about interpretations, dream symbolism, and all the secrets of the subconscious as many times as you wish.\n\n🌙 *The doors to the realm of dreams have fully opened for you* 🌙',
-          timestamp: new Date(),
-        };
-        this.messages.push(premiumMessage);
-        this.shouldAutoScroll = true;
-        this.saveMessagesToSession();
-        break;
-      // ✅ ELIMINADO: case '3' - 2 Consultas Extra
-      case '4': // Otra oportunidad
-        this.logger.log('🔄 Otra oportunidad onírica concedida');
-        break;
-      default:
-        this.logger.warn('⚠️ Premio onírico desconocido:', prize);
-    }
-  }
-  private addFreeDreamConsultations(count: number): void {
-    const current = parseInt(
-      this.storage.getFreeConsultations('Dream').toString() || '0'
-    );
-    const newTotal = current + count;
-    this.storage.setFreeConsultations('Dream', newTotal);
-    this.logger.log(
-      `🎁 Agregadas ${count} consultas de sueños. Total: ${newTotal}`
-    );
-
-    // Si había un mensaje bloqueado, desbloquearlo
-    if (this.blockedMessageId && !this.hasUserPaidForDreams) {
-      this.blockedMessageId = null;
-      this.storage.removeBlockedMessageId('');
-      this.logger.log('🔓 Mensaje onírico desbloqueado con consulta gratuita');
-    }
-  }
-  openDataModalForPayment(): void {
-    this.logger.log('🔓 Abriendo modal de datos para desbloquear mensaje onírico');
-
-    // Cerrar otros modales que puedan estar abiertos
-    this.showFortuneWheel = false;
-    this.showPaymentModal = false;
-
-    // Guardar el estado antes de proceder
-    this.saveStateBeforePayment();
-
-    // Abrir el modal de recolecta de datos
-    setTimeout(() => {
-      this.showDataModal = true;
-      this.logger.log('📝 Modal de datos abierto para desbloqueo onírico');
-    }, 100);
-  }
-  getDreamConsultationsCount(): number {
-    const freeDreamConsultations = parseInt(
-      this.storage.getFreeConsultations('Dream').toString() || '0'
-    );
-    const legacyFreeConsultations = parseInt(
-      this.storage.getFreeConsultations('').toString() || '0'
-    );
-
-    return freeDreamConsultations + legacyFreeConsultations;
-  }
-  // Cerrar la ruleta
-  onWheelClosed(): void {
-    this.showFortuneWheel = false;
-  }
-
-  private async checkPaymentStatus(): Promise<void> {
-    this.hasUserPaidForDreams = this.storage.hasUserPaid('Dreams');
 
     const paymentStatus = this.paypalService.checkPaymentStatusFromUrl();
 
@@ -311,47 +159,242 @@ export class SignificadoSuenosComponent
 
         if (verification.valid && verification.status === 'approved') {
           this.hasUserPaidForDreams = true;
-          this.storage.setUserPaid('Dreams', true);
+          sessionStorage.setItem('hasUserPaidForDreams_traumdeutung', 'true');
+          localStorage.removeItem('paypal_payment_completed');
 
           this.blockedMessageId = null;
-          this.storage.removeBlockedMessageId('dreams');
+          sessionStorage.removeItem('dreamBlockedMessageId');
 
-          window.history.replaceState({}, document.title, window.location.pathname);
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname
+          );
 
           this.showPaymentModal = false;
           this.isProcessingPayment = false;
           this.paymentError = null;
+          this.cdr.markForCheck();
 
           setTimeout(() => {
-            const confirmationMsg: ConversationMessage = {
+            const successMessage: ConversationMessage = {
               role: 'interpreter',
               message:
                 '🎉 Payment completed successfully!\n\n' +
-                '✨ Thank you. You now have full access to Dream Interpretation.\n\n' +
-                '🌙 Let\'s uncover the mysteries of your dreams together!',
+                '✨ Thank you very much for your payment. You now have full access to dream interpretation.\n\n' +
+                "💭 Let's discover the secrets of your dreams together!\n\n" +
+                '📌 Note: This payment is only for the dream interpretation service.',
               timestamp: new Date(),
             };
-            this.messages.push(confirmationMsg);
-            this.shouldAutoScroll = true;
+            this.messages.push(successMessage);
             this.saveMessagesToSession();
-
-            const pendingMessage = this.storage.getSessionItem<string>('pendingDreamMessage');
-            if (pendingMessage) {
-              this.storage.removeSessionItem('pendingDreamMessage');
-              setTimeout(() => {
-                this.messageText = pendingMessage;
-                this.sendMessage();
-              }, 1000);
-            }
+            this.cdr.detectChanges();
+            setTimeout(() => this.scrollToBottom(), 200);
           }, 1000);
         } else {
-          this.paymentError = 'Payment could not be verified.';
+          this.paymentError = 'Could not verify the payment.';
+          setTimeout(() => {
+            const errorMessage: ConversationMessage = {
+              role: 'interpreter',
+              message:
+                '❌ Could not verify the payment. Please try again or contact our support if the problem persists.',
+              timestamp: new Date(),
+            };
+            this.messages.push(errorMessage);
+            this.saveMessagesToSession();
+            this.cdr.detectChanges();
+          }, 800);
         }
       } catch (error) {
-        this.logger.error('Error verificando pago de PayPal:', error);
-        this.paymentError = 'Error in payment verification';
+        console.error('Error verifying PayPal payment:', error);
+        this.paymentError = 'Error verifying the payment';
+        setTimeout(() => {
+          const errorMessage: ConversationMessage = {
+            role: 'interpreter',
+            message:
+              '❌ Unfortunately, an error occurred while verifying the payment. Please try again later.',
+            timestamp: new Date(),
+          };
+          this.messages.push(errorMessage);
+          this.saveMessagesToSession();
+          this.cdr.detectChanges();
+        }, 800);
       }
     }
+
+    // Load user data from sessionStorage
+    const savedUserData = sessionStorage.getItem('userData');
+    if (savedUserData) {
+      try {
+        this.userData = JSON.parse(savedUserData);
+      } catch (error) {
+        this.userData = null;
+      }
+    } else {
+      this.userData = null;
+    }
+
+    // Load saved messages
+    const savedMessages = sessionStorage.getItem('dreamMessages');
+    const savedBlockedMessageId = sessionStorage.getItem(
+      'dreamBlockedMessageId'
+    );
+
+    if (savedMessages) {
+      try {
+        const parsedMessages = JSON.parse(savedMessages);
+        this.messages = parsedMessages.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp),
+        }));
+        this.blockedMessageId = savedBlockedMessageId || null;
+        this.hasStartedConversation = true;
+      } catch (error) {
+        this.clearSessionData();
+        this.startConversation();
+      }
+    } else {
+      this.startConversation();
+    }
+
+    // Show wheel if applicable
+    if (this.hasStartedConversation && FortuneWheelComponent.canShowWheel()) {
+      this.showWheelAfterDelay(2000);
+    }
+  }
+
+  // ✅ NEW: Get remaining free messages
+  getFreeMessagesRemaining(): number {
+    if (this.hasUserPaidForDreams) {
+      return -1; // Unlimited
+    }
+    return Math.max(0, this.FREE_MESSAGES_LIMIT - this.userMessageCount);
+  }
+
+  private setVideosSpeed(rate: number): void {
+    const host = this.elRef.nativeElement;
+    const videos = host.querySelectorAll<HTMLVideoElement>('video');
+    videos.forEach((v: any) => {
+      const apply = () => (v.playbackRate = rate);
+      if (v.readyState >= 1) apply();
+      else v.addEventListener('loadedmetadata', apply, { once: true });
+    });
+  }
+
+  showWheelAfterDelay(delayMs: number = 3000): void {
+    if (this.wheelTimer) {
+      clearTimeout(this.wheelTimer);
+    }
+
+    this.wheelTimer = setTimeout(() => {
+      if (
+        FortuneWheelComponent.canShowWheel() &&
+        !this.showPaymentModal &&
+        !this.showDataModal
+      ) {
+        this.showFortuneWheel = true;
+        this.cdr.markForCheck();
+      }
+    }, delayMs);
+  }
+
+  onPrizeWon(prize: Prize): void {
+    const prizeMessage: ConversationMessage = {
+      role: 'interpreter',
+      message: `🌙 The cosmic energies have blessed you! You have won: **${prize.name}** ${prize.icon}\n\nThis gift from the dream universe has been activated for you. The mysteries of dreams will be revealed with greater clarity. May fortune accompany you in your next interpretations!`,
+      timestamp: new Date(),
+      isPrizeAnnouncement: true,
+    };
+
+    this.messages.push(prizeMessage);
+    this.shouldAutoScroll = true;
+    this.saveMessagesToSession();
+
+    this.processDreamPrize(prize);
+  }
+
+  private processDreamPrize(prize: Prize): void {
+    switch (prize.id) {
+      case '1': // 3 Free Interpretations
+        this.addFreeDreamConsultations(3);
+        break;
+      case '2': // 1 Premium Analysis - FULL ACCESS
+        this.hasUserPaidForDreams = true;
+        sessionStorage.setItem('hasUserPaidForDreams_traumdeutung', 'true');
+
+        if (this.blockedMessageId) {
+          this.blockedMessageId = null;
+          sessionStorage.removeItem('dreamBlockedMessageId');
+        }
+
+        const premiumMessage: ConversationMessage = {
+          role: 'interpreter',
+          message:
+            '✨ **You have unlocked full Premium access!** ✨\n\nThe secrets of the dream world have smiled upon you in an extraordinary way. You now have unlimited access to all dream wisdom. You can consult about interpretations, dream symbols, and all the secrets of the subconscious as many times as you wish.\n\n🌙 *The doors to the dream realm have been fully opened for you* 🌙',
+          timestamp: new Date(),
+        };
+        this.messages.push(premiumMessage);
+        this.shouldAutoScroll = true;
+        this.saveMessagesToSession();
+        break;
+      case '4': // Another chance
+        break;
+      default:
+    }
+  }
+
+  private addFreeDreamConsultations(count: number): void {
+    const current = parseInt(
+      sessionStorage.getItem('freeDreamConsultations') || '0'
+    );
+    const newTotal = current + count;
+    sessionStorage.setItem('freeDreamConsultations', newTotal.toString());
+
+    if (this.blockedMessageId && !this.hasUserPaidForDreams) {
+      this.blockedMessageId = null;
+      sessionStorage.removeItem('dreamBlockedMessageId');
+    }
+
+    // Informative message
+    const infoMessage: ConversationMessage = {
+      role: 'interpreter',
+      message: `✨ *You have received ${count} free dream interpretations* ✨\n\nYou now have **${newTotal}** consultations available to explore the mysteries of your dreams.`,
+      timestamp: new Date(),
+    };
+    this.messages.push(infoMessage);
+    this.shouldAutoScroll = true;
+    this.saveMessagesToSession();
+  }
+
+  private hasFreeConsultationsAvailable(): boolean {
+    const freeConsultations = parseInt(
+      sessionStorage.getItem('freeDreamConsultations') || '0'
+    );
+    return freeConsultations > 0;
+  }
+
+  private useFreeConsultation(): void {
+    const freeConsultations = parseInt(
+      sessionStorage.getItem('freeDreamConsultations') || '0'
+    );
+
+    if (freeConsultations > 0) {
+      const remaining = freeConsultations - 1;
+      sessionStorage.setItem('freeDreamConsultations', remaining.toString());
+
+      const prizeMsg: ConversationMessage = {
+        role: 'interpreter',
+        message: `✨ *You have used a free interpretation* ✨\n\nYou have **${remaining}** free interpretations remaining.`,
+        timestamp: new Date(),
+      };
+      this.messages.push(prizeMsg);
+      this.shouldAutoScroll = true;
+      this.saveMessagesToSession();
+    }
+  }
+
+  onWheelClosed(): void {
+    this.showFortuneWheel = false;
   }
 
   ngAfterViewChecked(): void {
@@ -360,41 +403,41 @@ export class SignificadoSuenosComponent
       this.lastMessageCount = this.messages.length;
     }
   }
+
   onScroll(event: any): void {
     const element = event.target;
-    const threshold = 50; // píxeles desde el bottom
+    const threshold = 50;
     const isNearBottom =
       element.scrollHeight - element.scrollTop - element.clientHeight <
       threshold;
     this.shouldAutoScroll = isNearBottom;
   }
+
   ngOnDestroy(): void {
     if (this.wheelTimer) {
       clearTimeout(this.wheelTimer);
     }
   }
-  triggerFortuneWheel(): void {
-    this.logger.log('🎰 Intentando activar ruleta manualmente...');
 
+  triggerFortuneWheel(): void {
     if (this.showPaymentModal || this.showDataModal) {
-      this.logger.log('❌ No se puede mostrar - hay otros modales abiertos');
       return;
     }
 
     if (FortuneWheelComponent.canShowWheel()) {
-      this.logger.log('✅ Activando ruleta manualmente');
       this.showFortuneWheel = true;
+      this.cdr.markForCheck();
     } else {
-      this.logger.log('❌ No se puede activar ruleta - sin tiradas disponibles');
       alert(
-        'You don\'t have any spins available. ' +
-          FortuneWheelComponent.getSpinStatus()
+        "You don't have available spins. " + FortuneWheelComponent.getSpinStatus()
       );
     }
   }
+
   getSpinStatus(): string {
     return FortuneWheelComponent.getSpinStatus();
   }
+
   autoResize(event: any): void {
     const textarea = event.target;
     textarea.style.height = 'auto';
@@ -402,7 +445,6 @@ export class SignificadoSuenosComponent
   }
 
   startConversation(): void {
-    // Solo agregar mensaje de bienvenida si no hay mensajes
     if (this.messages.length === 0) {
       const randomWelcome =
         this.welcomeMessages[
@@ -419,56 +461,65 @@ export class SignificadoSuenosComponent
     }
     this.hasStartedConversation = true;
 
-    // ✅ VERIFICACIÓN SIMPLIFICADA
     if (FortuneWheelComponent.canShowWheel()) {
       this.showWheelAfterDelay(3000);
-    } else {
-      this.logger.log('🚫 No se puede mostrar ruleta - sin tiradas disponibles');
     }
   }
 
+  // ✅ MODIFIED: sendMessage() with 3 free messages system
   sendMessage(): void {
     if (this.messageText?.trim() && !this.isLoading) {
       const userMessage = this.messageText.trim();
 
-      // ✅ NUEVA LÓGICA: Verificar premios disponibles ANTES de bloquear
-      if (!this.hasUserPaidForDreams && this.firstQuestionAsked) {
-        // Verificar si tiene consultas gratis disponibles
-        if (this.hasFreeConsultationsAvailable()) {
-          this.logger.log('🎁 Usando consulta gratis del premio');
-          this.useFreeConsultation();
-          // Continuar con el mensaje sin bloquear
-        } else {
-          // Si no tiene consultas gratis, mostrar modal de datos PRIMERO
-          this.logger.log('💳 No hay consultas gratis - mostrando modal de datos');
+      // Calculate next message number
+      const nextMessageCount = this.userMessageCount + 1;
 
-          // ✅ Cerrar otros modales primero
-          this.showFortuneWheel = false;
-          this.showPaymentModal = false;
+      console.log(
+        `📊 Dreams - Message #${nextMessageCount}, Premium: ${this.hasUserPaidForDreams}, Limit: ${this.FREE_MESSAGES_LIMIT}`
+      );
 
-          // ✅ Guardar el mensaje para procesarlo después del pago
-          this.storage.setSessionItem('pendingUserMessage', userMessage);
+      // ✅ Check access
+      const canSendMessage =
+        this.hasUserPaidForDreams ||
+        this.hasFreeConsultationsAvailable() ||
+        nextMessageCount <= this.FREE_MESSAGES_LIMIT;
 
-          this.saveStateBeforePayment();
+      if (!canSendMessage) {
+        console.log('❌ No access - showing payment modal');
 
-          // ✅ Mostrar modal de datos con timeout para asegurar el cambio
-          setTimeout(() => {
-            this.showDataModal = true;
-            this.logger.log('📝 showDataModal establecido a:', this.showDataModal);
-          }, 100);
+        // Close other modals
+        this.showFortuneWheel = false;
+        this.showPaymentModal = false;
 
-          return; // ✅ Salir aquí para no procesar el mensaje aún
-        }
+        // Save pending message
+        sessionStorage.setItem('pendingDreamMessage', userMessage);
+        this.saveStateBeforePayment();
+
+        // Show data modal
+        setTimeout(() => {
+          this.showDataModal = true;
+          this.cdr.markForCheck();
+        }, 100);
+
+        return;
       }
 
-      // ✅ ACTIVAR AUTO-SCROLL cuando se envía un mensaje
-      this.shouldAutoScroll = true;
+      // ✅ If using free wheel consultation (after the 3 free ones)
+      if (
+        !this.hasUserPaidForDreams &&
+        nextMessageCount > this.FREE_MESSAGES_LIMIT &&
+        this.hasFreeConsultationsAvailable()
+      ) {
+        this.useFreeConsultation();
+      }
 
-      // ✅ Procesar el mensaje normalmente
-      this.processUserMessage(userMessage);
+      this.shouldAutoScroll = true;
+      this.processUserMessage(userMessage, nextMessageCount);
     }
   }
-  private processUserMessage(userMessage: string): void {
+
+  // ✅ MODIFIED: processUserMessage() to send messageCount to backend
+  private processUserMessage(userMessage: string, messageCount: number): void {
     const userMsg: ConversationMessage = {
       role: 'user',
       message: userMessage,
@@ -476,21 +527,39 @@ export class SignificadoSuenosComponent
     };
     this.messages.push(userMsg);
 
+    // ✅ Update counter
+    this.userMessageCount = messageCount;
+    sessionStorage.setItem(
+      'dreamUserMessageCount',
+      this.userMessageCount.toString()
+    );
+
     this.saveMessagesToSession();
     this.messageText = '';
     this.isTyping = true;
     this.isLoading = true;
+    this.cdr.markForCheck();
 
-    const conversationHistory = this.messages.slice(0, -1);
+    // Prepare conversation history
+    const conversationHistory = this.messages
+      .filter((msg) => msg.message && !msg.isPrizeAnnouncement)
+      .slice(-10)
+      .map((msg) => ({
+        role: msg.role,
+        message: msg.message,
+        timestamp: msg.timestamp,
+      }));
 
+    // ✅ Use the new method with messageCount
     this.dreamService
-      .chatWithInterpreter({
-        interpreterData: this.interpreterData,
-        userMessage: userMessage,
-        conversationHistory: conversationHistory,
-      })
+      .chatWithInterpreterWithCount(
+        userMessage,
+        messageCount,
+        this.hasUserPaidForDreams,
+        conversationHistory
+      )
       .subscribe({
-        next: (response: any) => {
+        next: (response: DreamChatResponse) => {
           this.isLoading = false;
           this.isTyping = false;
 
@@ -502,162 +571,65 @@ export class SignificadoSuenosComponent
               message: response.response,
               timestamp: new Date(),
               id: messageId,
+              freeMessagesRemaining: response.freeMessagesRemaining,
+              showPaywall: response.showPaywall,
+              isCompleteResponse: response.isCompleteResponse,
             };
             this.messages.push(interpreterMsg);
 
             this.shouldAutoScroll = true;
 
-            // ✅ ACTUALIZADA: Solo bloquear si no tiene consultas gratis Y no ha pagado
-            if (
-              this.firstQuestionAsked &&
-              !this.hasUserPaidForDreams &&
-              !this.hasFreeConsultationsAvailable()
-            ) {
-              this.blockedMessageId = messageId;
-              this.storage.setBlockedMessageId('', messageId);
+            console.log(
+              `📊 Response - Remaining messages: ${response.freeMessagesRemaining}, Paywall: ${response.showPaywall}, Complete: ${response.isCompleteResponse}`
+            );
 
-              // ✅ CAMBIO: Mostrar modal de datos en lugar de ir directo al pago
+            // ✅ Show paywall if backend indicates
+            if (response.showPaywall && !this.hasUserPaidForDreams) {
+              this.blockedMessageId = messageId;
+              sessionStorage.setItem('dreamBlockedMessageId', messageId);
+
               setTimeout(() => {
-                this.logger.log('🔒 Mensaje bloqueado - mostrando modal de datos');
                 this.saveStateBeforePayment();
 
-                // Cerrar otros modales
                 this.showFortuneWheel = false;
                 this.showPaymentModal = false;
 
-                // Mostrar modal de datos
                 setTimeout(() => {
                   this.showDataModal = true;
+                  this.cdr.markForCheck();
                 }, 100);
-              }, 2000);
-            } else if (!this.firstQuestionAsked) {
-              this.firstQuestionAsked = true;
-              this.storage.markFirstQuestionAsked('');
+              }, 2500);
             }
 
             this.saveMessagesToSession();
+            this.cdr.markForCheck();
           } else {
-            this.handleError('Error al obtener respuesta del intérprete');
+            this.handleError(
+              response.error || 'Error getting interpreter response'
+            );
           }
         },
         error: (error: any) => {
           this.isLoading = false;
           this.isTyping = false;
-          this.logger.error('Error:', error);
-          this.handleError('Error de conexión. Por favor, inténtalo de nuevo.');
+          console.error('Error in response:', error);
+          this.handleError('Connection error. Please try again.');
+          this.cdr.markForCheck();
         },
       });
   }
-  // ✅ NUEVO: Verificar si tiene consultas gratis disponibles
-  private hasFreeConsultationsAvailable(): boolean {
-    const freeConsultations = parseInt(
-      this.storage.getFreeConsultations('').toString() || '0'
-    );
-
-    this.logger.log(
-      '🔍 Verificando consultas gratis disponibles:',
-      freeConsultations
-    );
-    this.logger.log(
-      '🔍 Estado actual - hasUserPaidForDreams:',
-      this.hasUserPaidForDreams
-    );
-    this.logger.log(
-      '🔍 Estado actual - firstQuestionAsked:',
-      this.firstQuestionAsked
-    );
-
-    return freeConsultations > 0;
-  }
-
-  // ✅ NUEVO: Usar una consulta gratis
-  private useFreeConsultation(): void {
-    const freeConsultations = parseInt(
-      this.storage.getFreeConsultations('').toString() || '0'
-    );
-
-    if (freeConsultations > 0) {
-      const remaining = freeConsultations - 1;
-      this.storage.setFreeConsultations('', parseInt(remaining.toString()));
-      this.logger.log(`🎁 Consulta gratis usada. Restantes: ${remaining}`);
-
-      // Mostrar mensaje informativo
-      const prizeMsg: ConversationMessage = {
-        role: 'interpreter',
-        message: `✨ You have used one free consultation ✨\n\nYou have **${remaining}** free consultations left.`,
-        timestamp: new Date(),
-      };
-      this.messages.push(prizeMsg);
-      this.shouldAutoScroll = true;
-      this.saveMessagesToSession();
-    }
-  }
-
-  // ✅ NUEVO: Mostrar mensaje cuando se usa un premio
-  private showPrizeUsageMessage(): void {
-    const prizeMsg: ConversationMessage = {
-      role: 'interpreter',
-      message:
-        '✨ *You have used one of your mystical rewards earned in the wheel* ✨\n\nCosmic energies flow in your favor. Continue with your consultation!',
-      timestamp: new Date(),
-    };
-
-    this.messages.push(prizeMsg);
-    this.shouldAutoScroll = true;
-    this.saveMessagesToSession();
-  }
-
-  // ✅ NUEVO: Obtener resumen de premios disponibles
-  getPrizesAvailable(): string {
-    const prizes: string[] = [];
-
-    const freeConsultations = parseInt(
-      this.storage.getFreeConsultations('').toString() || '0'
-    );
-    if (freeConsultations > 0) {
-      prizes.push(
-        `${freeConsultations} consulta${
-          freeConsultations > 1 ? 's' : ''
-        } gratis`
-      );
-    }
-
-    const freeInterpretations = parseInt(
-      this.storage.getFreeConsultations('Interpretation').toString() || '0'
-    );
-    if (freeInterpretations > 0) {
-      prizes.push(
-        `${freeInterpretations} interpretación${
-          freeInterpretations > 1 ? 'es' : ''
-        } gratis`
-      );
-    }
-
-    if (this.storage.getSessionItem('hasVIPConsultation') === 'true') {
-      prizes.push('1 consulta VIP');
-    }
-
-    if (this.storage.getSessionItem('hasPremiumReading') === 'true') {
-      prizes.push('1 lectura premium');
-    }
-
-    if (this.storage.getSessionItem('hasMysticBonus') === 'true') {
-      prizes.push('Bonus místico activo');
-    }
-
-    return prizes.length > 0 ? prizes.join(', ') : 'Ninguna';
-  }
 
   private saveStateBeforePayment(): void {
-    this.logger.log('💾 Guardando estado antes del pago...');
     this.saveMessagesToSession();
-    this.storage.markFirstQuestionAsked('');
+    sessionStorage.setItem(
+      'dreamUserMessageCount',
+      this.userMessageCount.toString()
+    );
     if (this.blockedMessageId) {
-      this.storage.setBlockedMessageId('', this.blockedMessageId);
+      sessionStorage.setItem('dreamBlockedMessageId', this.blockedMessageId);
     }
   }
 
-  // ✅ ARREGLO: Método para guardar mensajes corregido
   private saveMessagesToSession(): void {
     try {
       const messagesToSave = this.messages.map((msg) => ({
@@ -667,32 +639,34 @@ export class SignificadoSuenosComponent
             ? msg.timestamp.toISOString()
             : msg.timestamp,
       }));
-      this.storage.setDreamMessages(messagesToSave);
+      sessionStorage.setItem('dreamMessages', JSON.stringify(messagesToSave));
     } catch (error) {
-      this.logger.error('Error guardando mensajes:', error);
+      console.error('Error saving messages:', error);
     }
   }
 
-  // ✅ NUEVO: Método para limpiar datos de sesión
+  // ✅ MODIFIED: clearSessionData() including counter
   private clearSessionData(): void {
-    this.storage.removeSessionItem('hasUserPaidForDreams');
-    this.storage.removeSessionItem('dreamMessages');
-    this.storage.removeSessionItem('firstQuestionAsked');
-    this.storage.removeBlockedMessageId('');
+    sessionStorage.removeItem('hasUserPaidForDreams_traumdeutung');
+    sessionStorage.removeItem('dreamMessages');
+    sessionStorage.removeItem('dreamBlockedMessageId');
+    sessionStorage.removeItem('dreamUserMessageCount');
+    sessionStorage.removeItem('freeDreamConsultations');
+    sessionStorage.removeItem('pendingDreamMessage');
   }
 
-  // MÉTODO PARA VERIFICAR SI UN MENSAJE ESTÁ BLOQUEADO
   isMessageBlocked(message: ConversationMessage): boolean {
     return message.id === this.blockedMessageId && !this.hasUserPaidForDreams;
   }
 
   async promptForPayment(): Promise<void> {
     this.showPaymentModal = true;
+    this.cdr.markForCheck();
     this.paymentError = null;
     this.isProcessingPayment = false;
 
     if (!this.userData) {
-      const savedUserData = JSON.stringify(this.storage.getUserData());
+      const savedUserData = sessionStorage.getItem('userData');
       if (savedUserData) {
         try {
           this.userData = JSON.parse(savedUserData);
@@ -703,40 +677,46 @@ export class SignificadoSuenosComponent
     }
 
     if (!this.userData) {
-      this.paymentError = 'No user data found. Please complete the form first.';
+      this.paymentError =
+        'Customer data not found. Please complete the form first.';
+      this.showPaymentModal = false;
       this.showDataModal = true;
+      this.cdr.markForCheck();
       return;
     }
 
     const email = this.userData.email?.toString().trim();
     if (!email) {
       this.paymentError = 'Email required. Please complete the form.';
+      this.showPaymentModal = false;
       this.showDataModal = true;
+      this.cdr.markForCheck();
       return;
     }
 
-    if (this.messageText) {
-      this.storage.setSessionItem('pendingDreamMessage', this.messageText);
+    if (this.messageText?.trim()) {
+      sessionStorage.setItem('pendingDreamMessage', this.messageText.trim());
     }
   }
 
   async handlePaymentSubmit(): Promise<void> {
     this.isProcessingPayment = true;
     this.paymentError = null;
+    this.cdr.markForCheck();
 
     try {
-      const orderData = {
+      await this.paypalService.initiatePayment({
         amount: '7.00',
         currency: 'USD',
-        serviceName: 'Dream Interpretation',
+        serviceName: 'Dream Meaning',
         returnPath: '/dream-meaning',
         cancelPath: '/dream-meaning',
-      };
-
-      await this.paypalService.initiatePayment(orderData);
+      });
     } catch (error: any) {
-      this.paymentError = error.message || 'Error initializing PayPal payment.';
+      this.paymentError =
+        error.message || 'Error initializing PayPal payment.';
       this.isProcessingPayment = false;
+      this.cdr.markForCheck();
     }
   }
 
@@ -744,59 +724,53 @@ export class SignificadoSuenosComponent
     this.showPaymentModal = false;
     this.isProcessingPayment = false;
     this.paymentError = null;
+    this.cdr.markForCheck();
   }
 
   adjustTextareaHeight(event: any): void {
     const textarea = event.target;
-
-    // Resetear altura para obtener scrollHeight correcto
     textarea.style.height = 'auto';
-
-    // Calcular nueva altura basada en el contenido
     const newHeight = Math.min(
       Math.max(textarea.scrollHeight, this.minTextareaHeight),
       this.maxTextareaHeight
     );
-
-    // Aplicar nueva altura
     this.textareaHeight = newHeight;
     textarea.style.height = newHeight + 'px';
   }
-  // Método para nueva consulta (resetear solo si no ha pagado)
+
+  // ✅ MODIFIED: newConsultation() resetting counter
   newConsultation(): void {
-    // ✅ RESETEAR CONTROL DE SCROLL
     this.shouldAutoScroll = true;
     this.lastMessageCount = 0;
 
     if (!this.hasUserPaidForDreams) {
-      this.firstQuestionAsked = false;
+      this.userMessageCount = 0;
       this.blockedMessageId = null;
       this.clearSessionData();
     } else {
-      this.storage.removeSessionItem('dreamMessages');
-      this.storage.removeSessionItem('firstQuestionAsked');
-      this.storage.removeBlockedMessageId('');
-      this.firstQuestionAsked = false;
+      sessionStorage.removeItem('dreamMessages');
+      sessionStorage.removeItem('dreamBlockedMessageId');
+      sessionStorage.removeItem('dreamUserMessageCount');
+      this.userMessageCount = 0;
       this.blockedMessageId = null;
     }
 
     this.messages = [];
     this.hasStartedConversation = false;
-    setTimeout(() => {
-      this.startConversation();
-    }, 500);
+    this.startConversation();
+    this.cdr.markForCheck();
   }
 
   private handleError(errorMessage: string): void {
     const errorMsg: ConversationMessage = {
       role: 'interpreter',
-      message: `🔮 The cosmic energies are disturbed... ${errorMessage} Please try again when the vibrations stabilize.`,
+      message: `🔮 The cosmic energies are disturbed... ${errorMessage} Try again when the vibrations stabilize.`,
       timestamp: new Date(),
     };
     this.messages.push(errorMsg);
-
-    // ✅ ACTIVAR AUTO-SCROLL para mensajes de error
     this.shouldAutoScroll = true;
+    this.saveMessagesToSession();
+    this.cdr.markForCheck();
   }
 
   private scrollToBottom(): void {
@@ -805,22 +779,18 @@ export class SignificadoSuenosComponent
         const element = this.scrollContainer.nativeElement;
         element.scrollTop = element.scrollHeight;
       }
-    } catch (err) {
-      this.logger.error('Error scrolling to bottom:', err);
-    }
+    } catch (err) {}
   }
 
   clearConversation(): void {
     this.newConsultation();
   }
 
-  // Actualizar el método onKeyPress
   onKeyPress(event: KeyboardEvent): void {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       if (this.messageText?.trim() && !this.isLoading) {
         this.sendMessage();
-        // Resetear altura del textarea después del envío
         setTimeout(() => {
           this.textareaHeight = this.minTextareaHeight;
         }, 50);
@@ -830,38 +800,28 @@ export class SignificadoSuenosComponent
 
   getTimeString(timestamp: Date | string): string {
     try {
-      // Si es string, convertir a Date
       const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
-
-      // Verificar que sea una fecha válida
       if (isNaN(date.getTime())) {
         return 'N/A';
       }
-
-      return date.toLocaleTimeString('es-ES', {
+      return date.toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit',
       });
     } catch (error) {
-      this.logger.error('Error formateando timestamp:', error);
       return 'N/A';
     }
   }
+
   formatMessage(content: string): string {
     if (!content) return '';
 
     let formattedContent = content;
-
-    // Convertir **texto** a <strong>texto</strong> para negrilla
     formattedContent = formattedContent.replace(
       /\*\*(.*?)\*\*/g,
       '<strong>$1</strong>'
     );
-
-    // Convertir saltos de línea a <br> para mejor visualización
     formattedContent = formattedContent.replace(/\n/g, '<br>');
-
-    // Opcional: También puedes manejar *texto* (una sola asterisco) como cursiva
     formattedContent = formattedContent.replace(
       /(?<!\*)\*([^*\n]+)\*(?!\*)/g,
       '<em>$1</em>'
@@ -869,77 +829,88 @@ export class SignificadoSuenosComponent
 
     return formattedContent;
   }
-  onUserDataSubmitted(userData: any): void {
-    this.logger.log('📥 Datos del usuario recibidos:', userData);
-    this.logger.log('📋 Campos disponibles:', Object.keys(userData));
 
-    // ✅ VALIDAR CAMPOS CRÍTICOS ANTES DE PROCEDER
+  onUserDataSubmitted(userData: any): void {
     const requiredFields = ['email'];
     const missingFields = requiredFields.filter(
       (field) => !userData[field] || userData[field].toString().trim() === ''
     );
 
     if (missingFields.length > 0) {
-      this.logger.error('❌ Missing data:', missingFields);
       alert(
-        `To proceed with the payment, you need to complete: ${missingFields.join(
+        `To continue with the payment, you must complete the following fields: ${missingFields.join(
           ', '
         )}`
       );
-      this.showDataModal = true; // Mantener modal abierto
+      this.showDataModal = true;
+      this.cdr.markForCheck();
       return;
     }
 
-    // ✅ LIMPIAR Y GUARDAR datos INMEDIATAMENTE en memoria Y sessionStorage
     this.userData = {
       ...userData,
       email: userData.email?.toString().trim(),
     };
 
-    // ✅ GUARDAR EN sessionStorage INMEDIATAMENTE
     try {
-      this.storage.setUserData(this.userData);
-      this.logger.log('✅ Datos guardados en sessionStorage:', this.userData);
-
-      // Verificar que se guardaron correctamente
-      const verificacion = JSON.stringify(this.storage.getUserData());
-      this.logger.log(
-        '🔍 Verificación - Datos en sessionStorage:',
-        verificacion ? JSON.parse(verificacion) : 'No encontrados'
-      );
+      sessionStorage.setItem('userData', JSON.stringify(this.userData));
     } catch (error) {
-      this.logger.error('❌ Error guardando en sessionStorage:', error);
+      console.error('Error saving userData:', error);
     }
 
     this.showDataModal = false;
+    this.cdr.markForCheck();
 
-    // Enviar datos al backend (opcional, no bloquea el pago)
     this.sendUserDataToBackend(userData);
   }
-  private sendUserDataToBackend(userData: any): void {
-    this.logger.log('📤 Enviando datos al backend...');
 
+  private sendUserDataToBackend(userData: any): void {
     this.http.post(`${this.backendUrl}api/recolecta`, userData).subscribe({
       next: (response) => {
-        this.logger.log('✅ Datos enviados correctamente al backend:', response);
-
-        // ✅ PROCEDER AL PAGO DESPUÉS DE UN PEQUEÑO DELAY
-        setTimeout(() => {
-          this.promptForPayment();
-        }, 500);
+        console.log('Data sent to backend:', response);
+        this.promptForPayment();
       },
       error: (error) => {
-        this.logger.error('❌ Error enviando datos al backend:', error);
-
-        // ✅ AUN ASÍ PROCEDER AL PAGO (el backend puede fallar pero el pago debe continuar)
-        this.logger.log('⚠️ Continuando con el pago a pesar del error del backend');
-        setTimeout(() => {
-          this.promptForPayment();
-        }, 500);
+        console.error('Error sending data:', error);
+        this.promptForPayment();
       },
     });
   }
+
   onDataModalClosed(): void {
     this.showDataModal = false;
+    this.cdr.markForCheck();
+  }
+
+  openDataModalForPayment(): void {
+    this.showFortuneWheel = false;
+    this.showPaymentModal = false;
+    this.saveStateBeforePayment();
+
+    setTimeout(() => {
+      this.showDataModal = true;
+      this.cdr.markForCheck();
+    }, 100);
+  }
+
+  getDreamConsultationsCount(): number {
+    return parseInt(sessionStorage.getItem('freeDreamConsultations') || '0');
+  }
+
+  getPrizesAvailable(): string {
+    const prizes: string[] = [];
+
+    const freeConsultations = parseInt(
+      sessionStorage.getItem('freeDreamConsultations') || '0'
+    );
+    if (freeConsultations > 0) {
+      prizes.push(
+        `${freeConsultations} free interpretation${
+          freeConsultations > 1 ? 's' : ''
+        }`
+      );
+    }
+
+    return prizes.length > 0 ? prizes.join(', ') : 'None';
   }
 }
